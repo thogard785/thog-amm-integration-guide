@@ -65,8 +65,8 @@ of the same compressed quote fixtures and run their comparisons offline.
 ## Versioning and execution context
 
 SDKs and adapters must understand the snapshot's layout, wire and model identifiers.
-An implementation upgrade, changed registry generation, missing events or a reorg
-requires appropriate state recovery. A matching ABI alone does not establish pricing
+An implementation upgrade, changed registry generation or missing events requires
+a fresh complete snapshot. A matching ABI alone does not establish pricing
 compatibility. The guide distinguishes read-only quotes, execution widening and
 post-transfer cap checks. Exactness refers to the same complete state, block and
 execution context; a later inclusion block can have different prices or inventory.
