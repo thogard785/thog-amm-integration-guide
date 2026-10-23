@@ -39,6 +39,9 @@ blocks and 204 relevant logs. Replayed state matches every fresh snapshot:
 all 126 words, token metadata, token balances and native MON. Additional
 [publication fixtures](fixtures/events-fork-v7.bin.gz) test independent readiness,
 anchor changes, spare-bit preservation and exact cap encoding.
+[Additional mainnet fixtures](fixtures/events-lending-pause-v7.json.gz) cover
+a lending exposure update at block 115772315 and pause/unpause at blocks
+115730334 and 115731694. Each one-block replay equals a fresh snapshot.
 
 Reproduce the mainnet reads without sending transactions:
 
