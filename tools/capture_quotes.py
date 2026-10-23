@@ -27,11 +27,24 @@ class RPC:
             try:
                 request = urllib.request.Request(self.url, data=data, headers={"Content-Type": "application/json"})
                 with urllib.request.urlopen(request, timeout=45) as response:
-                    return json.load(response)
+                    result = json.load(response)
+                responses = result if isinstance(result, list) else [result]
+                limited = any(self.rate_limited(r) for r in responses)
+                if not limited:
+                    return result
+                if attempt == 4:
+                    raise RuntimeError("RPC rate limit persisted after five attempts")
+                time.sleep(0.5 * 2**attempt)
             except (OSError, TimeoutError):
                 if attempt == 4:
                     raise
                 time.sleep(0.5 * (attempt + 1))
+
+    @staticmethod
+    def rate_limited(response):
+        error = response.get("error", {})
+        message = str(error.get("message", "")).lower()
+        return error.get("code") in (-32005, -32007, 429) or "rate limit" in message or "too many requests" in message
 
     def call(self, method, params):
         response = self.send({"jsonrpc": "2.0", "id": 1, "method": method, "params": params})
@@ -45,11 +58,8 @@ class RPC:
             batch = [{"jsonrpc": "2.0", "id": i, "method": "eth_call", "params": [
                 {"to": PROXY, "data": value, "gasPrice": "0x1"}, hex(block)]}
                 for i, value in enumerate(data[start:start + 8])]
-            for attempt in range(5):
-                time.sleep(0.30 + attempt * 0.5)
-                responses = self.send(batch)
-                if isinstance(responses, list) and not any(r.get("error", {}).get("code") == -32007 for r in responses):
-                    break
+            time.sleep(0.30)
+            responses = self.send(batch)
             if not isinstance(responses, list) or len(responses) != len(batch):
                 raise RuntimeError(f"incomplete batch: {responses}")
             by_id = {r["id"]: r for r in responses}
@@ -125,8 +135,10 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--rpc", default="https://rpc.monad.xyz")
     parser.add_argument("--blocks", help="comma-separated historical block numbers; default is the previous block")
-    parser.add_argument("--output", type=Path, default=Path("fixtures/deployed-v7.json.gz"))
+    parser.add_argument("--output", type=Path, required=True, help="new output file; existing files are never overwritten")
     args = parser.parse_args()
+    if args.output.exists():
+        parser.error("output already exists; choose a new capture path")
     rpc = RPC(args.rpc)
     chain_id = int(rpc.call("eth_chainId", []), 16)
     assert chain_id == 143, "expected Monad mainnet"
@@ -138,7 +150,8 @@ def main():
                "snapshots": [capture(rpc, block) for block in blocks]}
     args.output.parent.mkdir(parents=True, exist_ok=True)
     data = (json.dumps(fixture, separators=(",", ":")) + "\n").encode()
-    args.output.write_bytes(gzip.compress(data, mtime=0))
+    with args.output.open("xb") as output:
+        output.write(gzip.compress(data, mtime=0))
     print(f"saved {args.output}: {len(data)} bytes before compression")
 
 

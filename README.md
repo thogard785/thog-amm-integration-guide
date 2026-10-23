@@ -44,8 +44,8 @@ Reproduce the mainnet reads without sending transactions:
 
 ```sh
 python3 tools/verify_runtime.py --rpc https://rpc.monad.xyz
-python3 tools/capture_quotes.py --rpc https://rpc.monad.xyz --blocks 115786825,115786925,115787025
-python3 tools/capture_events.py --rpc https://rpc.monad.xyz
+python3 tools/capture_quotes.py --rpc https://rpc.monad.xyz --blocks 115786825,115786925,115787025 --output /tmp/thogamm-quotes.json.gz
+python3 tools/capture_events.py --rpc https://rpc.monad.xyz --output /tmp/thogamm-events.json.gz
 ```
 
 See [fork verification instructions](verification/README.md) to reproduce the

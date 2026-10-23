@@ -14,8 +14,10 @@ def main():
     p.add_argument('--rpc',default='https://rpc.monad.xyz')
     p.add_argument('--start',type=int,default=115786825)
     p.add_argument('--stop',type=int,default=115787025)
-    p.add_argument('--output',type=Path,default=Path('fixtures/events-v7.json.gz'))
-    a=p.parse_args(); rpc=RPC(a.rpc)
+    p.add_argument('--output',type=Path,required=True,help='new output file; existing files are never overwritten')
+    a=p.parse_args()
+    if a.output.exists(): p.error('output already exists; choose a new capture path')
+    rpc=RPC(a.rpc)
     owner='0x'+word(int(PROXY,16))
     transfer=signature('Transfer(address,address,uint256)')
     filters=[{'address':PROXY},{'topics':[transfer,owner]},{'topics':[transfer,None,owner]},
@@ -41,9 +43,11 @@ def main():
     for j,n in enumerate(range(a.start,a.stop+1)):
         h=result[2*j]
         blocklogs=sorted([l for l in logs.values() if l['blockHash']==h['hash']],key=lambda l:(int(l['transactionIndex'],16),int(l['logIndex'],16)))
-        blocks.append({'header':{k:h[k] for k in ['number','hash','parentHash','baseFeePerGas']},'snapshot':result[2*j+1],'logs':blocklogs})
+        blocks.append({'header':{k:h[k] for k in ['number','hash','parentHash','baseFeePerGas','timestamp']},'snapshot':result[2*j+1],'logs':blocklogs})
     assert rpc.call('eth_getBlockByNumber',[hex(a.stop),False])['hash']==blocks[-1]['header']['hash']
-    a.output.write_bytes(gzip.compress((json.dumps({'proxy':PROXY,'rpc':a.rpc,'blocks':blocks},separators=(',',':'))+'\n').encode(),mtime=0))
+    a.output.parent.mkdir(parents=True,exist_ok=True)
+    with a.output.open('xb') as output:
+        output.write(gzip.compress((json.dumps({'proxy':PROXY,'rpc':a.rpc,'blocks':blocks},separators=(',',':'))+'\n').encode(),mtime=0))
     print(f'saved {len(blocks)-1} replay blocks, {len(logs)} logs: {a.output}',flush=True)
 
 if __name__=='__main__': main()
