@@ -433,7 +433,7 @@ event MakerWrapperCostApplied(int256 costUsdWad);
 | `Paused` | Set maker pause bit 132 in control word 2. This owner pause also controls taker execution. |
 | Registered token `Transfer` | Subtract when `from` is the proxy and add when `to` is the proxy. A self-transfer nets to zero. Include mint/burn transfers. |
 | WMON `Deposit` / `Withdrawal` | Apply actual wrapped-token mint/burn semantics for the supported WMON implementation. Do not count both a deposit event and a mint `Transfer` for the same movement if an implementation emits both. |
-| `MakerWmonBalanceCheckpoint` | Replace the WMON ERC-20 balance absolutely at that log position. Later movements still apply. |
+| `MakerWmonBalanceCheckpoint` | Compare the absolute WMON balance with replay at that position; a mismatch identifies missing/incorrect WMON events. Later movements still apply. |
 | `NativeBalanceCheckpoint` | Replace native MON balance absolutely at that log position. |
 | `MakerTokenAdded` / `MakerTokenRetired` | Invalidate the registry generation and reload a complete snapshot; neither event contains the complete replacement policy. Retirement can move existing indices even when replacement leaves the counts unchanged. |
 | Proxy implementation upgrade / migration | Verify implementation/schema compatibility and rebuild from a post-upgrade snapshot before using the new model. |
@@ -496,8 +496,8 @@ event replay.
 `MakerExtraFeePaid` and `MakerWrapperCostApplied` are accounting events. When
 using token transfers for inventory, **do not apply swap amounts or fee amounts
 as a second balance delta**. Transfers cover maker swaps, taker swaps, loans,
-owner withdrawals and direct funding. WMON checkpoints replace earlier WMON
-movement in the same transaction; they are not additional transfers.
+owner withdrawals and direct funding. WMON checkpoints validate earlier WMON
+movements; they are not additional transfers or checks of other tokens.
 
 Native checkpoints cover the executor's instrumented native movements. Forced
 native transfers can bypass `receive()`, and nonstandard tokens can change
