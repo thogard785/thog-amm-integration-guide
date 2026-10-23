@@ -1,0 +1,58 @@
+[
+  {
+    "name": "MakerEulerCatalog",
+    "address": "0xf7bd6c839ac5a79c267769689b049660597c530b",
+    "runtimeBytes": 360,
+    "sha256": "9d33a52ea701fbfc0e191f118981c006ccc7f43fe60fb9954a596a7a1bc13ec4",
+    "matchesCompiledSource": true
+  },
+  {
+    "name": "MakerLending",
+    "address": "0xad311802a2db53a0347cf5705e5a653c99626f1a",
+    "runtimeBytes": 8214,
+    "sha256": "4e5b73e940ce45566fe678939bce7e8de2860b487e50e8b53bdb9f9c8dd81207",
+    "matchesCompiledSource": true
+  },
+  {
+    "name": "MakerRoutingMath",
+    "address": "0x3e7291398cd3c43ae7b5d8be52253910b794c674",
+    "runtimeBytes": 5712,
+    "sha256": "31863f9a4e9424b8045229d498a494e9763112bf3cba84da3850cd8a11fbf45a",
+    "matchesCompiledSource": true
+  },
+  {
+    "name": "MakerInventoryCaps",
+    "address": "0x1b8899edf61864746460f5421dcfaa7dcd23b372",
+    "runtimeBytes": 10505,
+    "sha256": "5bac3e3e0a04c3959247b1ad5b3ae12e65bf51ded78c8108fd83a15be0b62689",
+    "matchesCompiledSource": true
+  },
+  {
+    "name": "MakerRiskPublication",
+    "address": "0x6e0fa7899154a9962c8c892afaf9dbe57a770ad0",
+    "runtimeBytes": 6099,
+    "sha256": "bded3baab1a6c25a7a4b893aaaf0d1babb6fd1a0a1f1056bebdbe1537791d625",
+    "matchesCompiledSource": true
+  },
+  {
+    "name": "MakerPoolData",
+    "address": "0x27a0f641e98109e8c813947855ce86e853750a3a",
+    "runtimeBytes": 16096,
+    "sha256": "42d3909a9c91ff44f9aba56f324019e5471bb60ca33b001d5bd00242f02c80c7",
+    "matchesCompiledSource": true
+  },
+  {
+    "name": "OnePageMigration",
+    "address": "0x751a9ff778f21ff8b7f6ed4a696ce92dde86002f",
+    "runtimeBytes": 2319,
+    "sha256": "8a6aad6474dfe6353f490b2932b1ec07515e7bfb92ba5e4cf53c75a796724b90",
+    "matchesCompiledSource": true
+  },
+  {
+    "name": "TakerExecutor",
+    "address": "0x709ba37580a7faf034522163353bd1547d2fb0ba",
+    "runtimeBytes": 125900,
+    "sha256": "b3967530504d2e7d50385ef12a6feb63ced0f705cb63f6a5545d641191869d03",
+    "matchesCompiledSource": true
+  }
+]

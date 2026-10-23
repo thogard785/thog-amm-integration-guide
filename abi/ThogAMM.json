@@ -1,0 +1,945 @@
+[
+  {
+    "type": "function",
+    "name": "getCapabilities",
+    "inputs": [
+      {
+        "name": "poolId",
+        "type": "bytes32",
+        "internalType": "bytes32"
+      },
+      {
+        "name": "sellToken",
+        "type": "address",
+        "internalType": "address"
+      },
+      {
+        "name": "buyToken",
+        "type": "address",
+        "internalType": "address"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "capabilities",
+        "type": "uint8[]",
+        "internalType": "enum IERC_LiquidityInterface.Capability[]"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "getLimits",
+    "inputs": [
+      {
+        "name": "poolId",
+        "type": "bytes32",
+        "internalType": "bytes32"
+      },
+      {
+        "name": "sellToken",
+        "type": "address",
+        "internalType": "address"
+      },
+      {
+        "name": "buyToken",
+        "type": "address",
+        "internalType": "address"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "limits",
+        "type": "uint256[]",
+        "internalType": "uint256[]"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "getPoolData",
+    "inputs": [
+      {
+        "name": "startTokenIndex",
+        "type": "uint8",
+        "internalType": "uint8"
+      },
+      {
+        "name": "stopTokenIndex",
+        "type": "uint8",
+        "internalType": "uint8"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "",
+        "type": "tuple",
+        "internalType": "struct IPropAMMRegistry.PoolData",
+        "components": [
+          {
+            "name": "schemaVersion",
+            "type": "uint16",
+            "internalType": "uint16"
+          },
+          {
+            "name": "blockNumber",
+            "type": "uint256",
+            "internalType": "uint256"
+          },
+          {
+            "name": "baseFeePerGas",
+            "type": "uint256",
+            "internalType": "uint256"
+          },
+          {
+            "name": "parentBlockHash",
+            "type": "bytes32",
+            "internalType": "bytes32"
+          },
+          {
+            "name": "tokenCount",
+            "type": "uint8",
+            "internalType": "uint8"
+          },
+          {
+            "name": "categoryCount",
+            "type": "uint8",
+            "internalType": "uint8"
+          },
+          {
+            "name": "startTokenIndex",
+            "type": "uint8",
+            "internalType": "uint8"
+          },
+          {
+            "name": "tokens",
+            "type": "tuple[]",
+            "internalType": "struct IPropAMMRegistry.TokenMetadata[]",
+            "components": [
+              {
+                "name": "token",
+                "type": "address",
+                "internalType": "address"
+              },
+              {
+                "name": "decimals",
+                "type": "uint8",
+                "internalType": "uint8"
+              },
+              {
+                "name": "category",
+                "type": "uint8",
+                "internalType": "uint8"
+              },
+              {
+                "name": "price",
+                "type": "uint32",
+                "internalType": "uint32"
+              },
+              {
+                "name": "priceTail",
+                "type": "uint32",
+                "internalType": "uint32"
+              },
+              {
+                "name": "tokenBidSpread",
+                "type": "uint32",
+                "internalType": "uint32"
+              },
+              {
+                "name": "tokenAskSpread",
+                "type": "uint32",
+                "internalType": "uint32"
+              },
+              {
+                "name": "volumeRate",
+                "type": "uint32",
+                "internalType": "uint32"
+              },
+              {
+                "name": "categorySpread",
+                "type": "uint32",
+                "internalType": "uint32"
+              },
+              {
+                "name": "inventory",
+                "type": "uint32",
+                "internalType": "uint32"
+              },
+              {
+                "name": "sides",
+                "type": "uint32",
+                "internalType": "uint32"
+              },
+              {
+                "name": "postedBlock",
+                "type": "uint32",
+                "internalType": "uint32"
+              },
+              {
+                "name": "sequence",
+                "type": "uint32",
+                "internalType": "uint32"
+              },
+              {
+                "name": "pairStart",
+                "type": "uint32",
+                "internalType": "uint32"
+              },
+              {
+                "name": "inventoryCap",
+                "type": "uint32",
+                "internalType": "uint32"
+              }
+            ]
+          },
+          {
+            "name": "balances",
+            "type": "uint256[]",
+            "internalType": "uint256[]"
+          },
+          {
+            "name": "categories",
+            "type": "tuple[]",
+            "internalType": "struct IPropAMMRegistry.CategoryMetadata[]",
+            "components": [
+              {
+                "name": "anchorTokenIndex",
+                "type": "uint8",
+                "internalType": "uint8"
+              },
+              {
+                "name": "price",
+                "type": "uint32",
+                "internalType": "uint32"
+              },
+              {
+                "name": "priceTail",
+                "type": "uint32",
+                "internalType": "uint32"
+              },
+              {
+                "name": "inventory",
+                "type": "uint32",
+                "internalType": "uint32"
+              },
+              {
+                "name": "spread",
+                "type": "uint32",
+                "internalType": "uint32"
+              },
+              {
+                "name": "postedBlock",
+                "type": "uint32",
+                "internalType": "uint32"
+              },
+              {
+                "name": "inventoryCap",
+                "type": "uint32",
+                "internalType": "uint32"
+              }
+            ]
+          },
+          {
+            "name": "words",
+            "type": "tuple[]",
+            "internalType": "struct IPropAMMRegistry.StorageWord[]",
+            "components": [
+              {
+                "name": "slot",
+                "type": "uint16",
+                "internalType": "uint16"
+              },
+              {
+                "name": "value",
+                "type": "uint256",
+                "internalType": "uint256"
+              }
+            ]
+          },
+          {
+            "name": "nativeBalance",
+            "type": "uint256",
+            "internalType": "uint256"
+          },
+          {
+            "name": "portfolioBalances",
+            "type": "uint256[]",
+            "internalType": "uint256[]"
+          }
+        ]
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "getPoolIds",
+    "inputs": [],
+    "outputs": [
+      {
+        "name": "poolIds",
+        "type": "bytes32[]",
+        "internalType": "bytes32[]"
+      }
+    ],
+    "stateMutability": "pure"
+  },
+  {
+    "type": "function",
+    "name": "getTokens",
+    "inputs": [
+      {
+        "name": "poolId",
+        "type": "bytes32",
+        "internalType": "bytes32"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "",
+        "type": "address[]",
+        "internalType": "address[]"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "makerQuoteExactInput",
+    "inputs": [
+      {
+        "name": "tokenIn",
+        "type": "address",
+        "internalType": "address"
+      },
+      {
+        "name": "tokenOut",
+        "type": "address",
+        "internalType": "address"
+      },
+      {
+        "name": "amountIn",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "amountOut",
+        "type": "uint256",
+        "internalType": "uint256"
+      },
+      {
+        "name": "lastPostedBlock",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "makerSwapExactInput",
+    "inputs": [
+      {
+        "name": "tokenIn",
+        "type": "address",
+        "internalType": "address"
+      },
+      {
+        "name": "tokenOut",
+        "type": "address",
+        "internalType": "address"
+      },
+      {
+        "name": "amountIn",
+        "type": "uint256",
+        "internalType": "uint256"
+      },
+      {
+        "name": "minAmountOut",
+        "type": "uint256",
+        "internalType": "uint256"
+      },
+      {
+        "name": "recipient",
+        "type": "address",
+        "internalType": "address"
+      },
+      {
+        "name": "deadlineBlock",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "amountOut",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ],
+    "stateMutability": "nonpayable"
+  },
+  {
+    "type": "function",
+    "name": "price",
+    "inputs": [
+      {
+        "name": "poolId",
+        "type": "bytes32",
+        "internalType": "bytes32"
+      },
+      {
+        "name": "sellToken",
+        "type": "address",
+        "internalType": "address"
+      },
+      {
+        "name": "buyToken",
+        "type": "address",
+        "internalType": "address"
+      },
+      {
+        "name": "specifiedAmounts",
+        "type": "uint256[]",
+        "internalType": "uint256[]"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "prices",
+        "type": "tuple[]",
+        "internalType": "struct IERC_LiquidityInterface.Fraction[]",
+        "components": [
+          {
+            "name": "numerator",
+            "type": "uint256",
+            "internalType": "uint256"
+          },
+          {
+            "name": "denominator",
+            "type": "uint256",
+            "internalType": "uint256"
+          }
+        ]
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "swap",
+    "inputs": [
+      {
+        "name": "poolId",
+        "type": "bytes32",
+        "internalType": "bytes32"
+      },
+      {
+        "name": "sellToken",
+        "type": "address",
+        "internalType": "address"
+      },
+      {
+        "name": "buyToken",
+        "type": "address",
+        "internalType": "address"
+      },
+      {
+        "name": "side",
+        "type": "uint8",
+        "internalType": "enum IERC_LiquidityInterface.OrderSide"
+      },
+      {
+        "name": "specifiedAmount",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "trade",
+        "type": "tuple",
+        "internalType": "struct IERC_LiquidityInterface.Trade",
+        "components": [
+          {
+            "name": "calculatedAmount",
+            "type": "uint256",
+            "internalType": "uint256"
+          },
+          {
+            "name": "gasUsed",
+            "type": "uint256",
+            "internalType": "uint256"
+          },
+          {
+            "name": "marginalPriceAfterTrade",
+            "type": "tuple",
+            "internalType": "struct IERC_LiquidityInterface.Fraction",
+            "components": [
+              {
+                "name": "numerator",
+                "type": "uint256",
+                "internalType": "uint256"
+              },
+              {
+                "name": "denominator",
+                "type": "uint256",
+                "internalType": "uint256"
+              }
+            ]
+          }
+        ]
+      }
+    ],
+    "stateMutability": "nonpayable"
+  },
+  {
+    "type": "function",
+    "name": "swapWithExtraFees",
+    "inputs": [
+      {
+        "name": "tokenIn",
+        "type": "address",
+        "internalType": "address"
+      },
+      {
+        "name": "tokenOut",
+        "type": "address",
+        "internalType": "address"
+      },
+      {
+        "name": "amountIn",
+        "type": "uint256",
+        "internalType": "uint256"
+      },
+      {
+        "name": "minAmountOut",
+        "type": "uint256",
+        "internalType": "uint256"
+      },
+      {
+        "name": "expiry",
+        "type": "uint256",
+        "internalType": "uint256"
+      },
+      {
+        "name": "extraFeePpm",
+        "type": "uint256",
+        "internalType": "uint256"
+      },
+      {
+        "name": "feeRecipient",
+        "type": "address",
+        "internalType": "address"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "amountOut",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ],
+    "stateMutability": "nonpayable"
+  },
+  {
+    "type": "event",
+    "name": "MakerExtraFeePaid",
+    "inputs": [
+      {
+        "name": "tokenOut",
+        "type": "address",
+        "indexed": true,
+        "internalType": "address"
+      },
+      {
+        "name": "feeRecipient",
+        "type": "address",
+        "indexed": true,
+        "internalType": "address"
+      },
+      {
+        "name": "amount",
+        "type": "uint256",
+        "indexed": false,
+        "internalType": "uint256"
+      }
+    ],
+    "anonymous": false
+  },
+  {
+    "type": "event",
+    "name": "MakerLendingExposureUpdated",
+    "inputs": [
+      {
+        "name": "venue",
+        "type": "uint8",
+        "indexed": true,
+        "internalType": "uint8"
+      },
+      {
+        "name": "category",
+        "type": "uint8",
+        "indexed": true,
+        "internalType": "uint8"
+      },
+      {
+        "name": "sequence",
+        "type": "uint32",
+        "indexed": false,
+        "internalType": "uint32"
+      },
+      {
+        "name": "offset",
+        "type": "int64",
+        "indexed": false,
+        "internalType": "int64"
+      }
+    ],
+    "anonymous": false
+  },
+  {
+    "type": "event",
+    "name": "MakerPageUpdated",
+    "inputs": [
+      {
+        "name": "lane",
+        "type": "uint8",
+        "indexed": true,
+        "internalType": "uint8"
+      },
+      {
+        "name": "payload",
+        "type": "bytes",
+        "indexed": false,
+        "internalType": "bytes"
+      },
+      {
+        "name": "control",
+        "type": "uint256",
+        "indexed": false,
+        "internalType": "uint256"
+      }
+    ],
+    "anonymous": false
+  },
+  {
+    "type": "event",
+    "name": "MakerPageUpdated",
+    "inputs": [
+      {
+        "name": "lane",
+        "type": "uint8",
+        "indexed": true,
+        "internalType": "uint8"
+      },
+      {
+        "name": "payload",
+        "type": "bytes",
+        "indexed": false,
+        "internalType": "bytes"
+      },
+      {
+        "name": "control",
+        "type": "uint256",
+        "indexed": false,
+        "internalType": "uint256"
+      }
+    ],
+    "anonymous": false
+  },
+  {
+    "type": "event",
+    "name": "MakerSwapExecuted",
+    "inputs": [
+      {
+        "name": "tokenIn",
+        "type": "address",
+        "indexed": true,
+        "internalType": "address"
+      },
+      {
+        "name": "tokenOut",
+        "type": "address",
+        "indexed": true,
+        "internalType": "address"
+      },
+      {
+        "name": "sender",
+        "type": "address",
+        "indexed": true,
+        "internalType": "address"
+      },
+      {
+        "name": "recipient",
+        "type": "address",
+        "indexed": false,
+        "internalType": "address"
+      },
+      {
+        "name": "amountIn",
+        "type": "uint256",
+        "indexed": false,
+        "internalType": "uint256"
+      },
+      {
+        "name": "amountOut",
+        "type": "uint256",
+        "indexed": false,
+        "internalType": "uint256"
+      },
+      {
+        "name": "quoteAgeBlocks",
+        "type": "uint256",
+        "indexed": false,
+        "internalType": "uint256"
+      },
+      {
+        "name": "inventoryPenaltyUsdWad",
+        "type": "uint256",
+        "indexed": false,
+        "internalType": "uint256"
+      }
+    ],
+    "anonymous": false
+  },
+  {
+    "type": "event",
+    "name": "MakerTokenAdded",
+    "inputs": [
+      {
+        "name": "tokenIndex",
+        "type": "uint8",
+        "indexed": true,
+        "internalType": "uint8"
+      },
+      {
+        "name": "token",
+        "type": "address",
+        "indexed": true,
+        "internalType": "address"
+      },
+      {
+        "name": "metadata",
+        "type": "tuple",
+        "indexed": false,
+        "internalType": "struct IPropAMMRegistry.TokenMetadata",
+        "components": [
+          {
+            "name": "token",
+            "type": "address",
+            "internalType": "address"
+          },
+          {
+            "name": "decimals",
+            "type": "uint8",
+            "internalType": "uint8"
+          },
+          {
+            "name": "category",
+            "type": "uint8",
+            "internalType": "uint8"
+          },
+          {
+            "name": "price",
+            "type": "uint32",
+            "internalType": "uint32"
+          },
+          {
+            "name": "priceTail",
+            "type": "uint32",
+            "internalType": "uint32"
+          },
+          {
+            "name": "tokenBidSpread",
+            "type": "uint32",
+            "internalType": "uint32"
+          },
+          {
+            "name": "tokenAskSpread",
+            "type": "uint32",
+            "internalType": "uint32"
+          },
+          {
+            "name": "volumeRate",
+            "type": "uint32",
+            "internalType": "uint32"
+          },
+          {
+            "name": "categorySpread",
+            "type": "uint32",
+            "internalType": "uint32"
+          },
+          {
+            "name": "inventory",
+            "type": "uint32",
+            "internalType": "uint32"
+          },
+          {
+            "name": "sides",
+            "type": "uint32",
+            "internalType": "uint32"
+          },
+          {
+            "name": "postedBlock",
+            "type": "uint32",
+            "internalType": "uint32"
+          },
+          {
+            "name": "sequence",
+            "type": "uint32",
+            "internalType": "uint32"
+          },
+          {
+            "name": "pairStart",
+            "type": "uint32",
+            "internalType": "uint32"
+          },
+          {
+            "name": "inventoryCap",
+            "type": "uint32",
+            "internalType": "uint32"
+          }
+        ]
+      },
+      {
+        "name": "categoryMetadata",
+        "type": "tuple",
+        "indexed": false,
+        "internalType": "struct IPropAMMRegistry.CategoryMetadata",
+        "components": [
+          {
+            "name": "anchorTokenIndex",
+            "type": "uint8",
+            "internalType": "uint8"
+          },
+          {
+            "name": "price",
+            "type": "uint32",
+            "internalType": "uint32"
+          },
+          {
+            "name": "priceTail",
+            "type": "uint32",
+            "internalType": "uint32"
+          },
+          {
+            "name": "inventory",
+            "type": "uint32",
+            "internalType": "uint32"
+          },
+          {
+            "name": "spread",
+            "type": "uint32",
+            "internalType": "uint32"
+          },
+          {
+            "name": "postedBlock",
+            "type": "uint32",
+            "internalType": "uint32"
+          },
+          {
+            "name": "inventoryCap",
+            "type": "uint32",
+            "internalType": "uint32"
+          }
+        ]
+      },
+      {
+        "name": "balance",
+        "type": "uint256",
+        "indexed": false,
+        "internalType": "uint256"
+      }
+    ],
+    "anonymous": false
+  },
+  {
+    "type": "event",
+    "name": "MakerTokenRetired",
+    "inputs": [
+      {
+        "name": "retiredIndex",
+        "type": "uint8",
+        "indexed": true,
+        "internalType": "uint8"
+      },
+      {
+        "name": "token",
+        "type": "address",
+        "indexed": true,
+        "internalType": "address"
+      },
+      {
+        "name": "movedFrom",
+        "type": "uint8",
+        "indexed": false,
+        "internalType": "uint8"
+      },
+      {
+        "name": "generation",
+        "type": "uint32",
+        "indexed": false,
+        "internalType": "uint32"
+      }
+    ],
+    "anonymous": false
+  },
+  {
+    "type": "event",
+    "name": "MakerWmonBalanceCheckpoint",
+    "inputs": [
+      {
+        "name": "balance",
+        "type": "uint256",
+        "indexed": false,
+        "internalType": "uint256"
+      }
+    ],
+    "anonymous": false
+  },
+  {
+    "type": "event",
+    "name": "MakerWrapperCostApplied",
+    "inputs": [
+      {
+        "name": "costUsdWad",
+        "type": "int256",
+        "indexed": false,
+        "internalType": "int256"
+      }
+    ],
+    "anonymous": false
+  },
+  {
+    "type": "event",
+    "name": "NativeBalanceCheckpoint",
+    "inputs": [
+      {
+        "name": "balance",
+        "type": "uint256",
+        "indexed": false,
+        "internalType": "uint256"
+      }
+    ],
+    "anonymous": false
+  },
+  {
+    "type": "event",
+    "name": "Paused",
+    "inputs": [
+      {
+        "name": "paused",
+        "type": "bool",
+        "indexed": false,
+        "internalType": "bool"
+      }
+    ],
+    "anonymous": false
+  }
+]

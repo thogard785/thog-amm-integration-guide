@@ -1,0 +1,6 @@
+__pycache__/
+fixtures/*.jsonl
+fixtures/*.bin
+verification/lib/
+verification/out/
+verification/cache/
