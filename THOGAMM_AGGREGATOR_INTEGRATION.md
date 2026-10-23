@@ -52,8 +52,10 @@ Display name: `ThogAMM`. Canonical logo:
 Use WMON rather than native MON. Fee-on-transfer tokens are unsupported.
 `getTokens(poolId)` is the authoritative registry; the table is the initial
 eight-token configuration, not a fixed capacity. Schema 7 supports up to 32
-tokens and 32 risk categories. Discover added tokens and their decimals from
-`getPoolData`; directional availability is dynamic.
+tokens and 32 risk categories. This implementation compiles only the eight
+tokens above; a new token address requires a catalog upgrade before listing.
+Discover the active registry and decimals from `getPoolData`; indices and
+directional availability are dynamic.
 
 ## Aggregator interface
 
