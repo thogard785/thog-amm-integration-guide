@@ -52,6 +52,12 @@ See [fork verification instructions](verification/README.md) to reproduce the
 settlement and boundary captures. The Rust SDKs and Kyber adapter include copies
 of the same compressed quote fixtures and run their comparisons offline.
 
+## Release references
+
+- [Polling SDK v0.3.0](https://github.com/thogard785/thog-amm-poll-sdk/releases/tag/v0.3.0), commit `11635f1df026c1e0ec9dde821546f0fe4729b8bf`.
+- [Event SDK v0.3.0](https://github.com/thogard785/thog-amm-event-sdk/releases/tag/v0.3.0), commit `3ae66cce1cd162ca033b478625dd3284699ef8e2`.
+- [Kyber adapter PR #1844](https://github.com/KyberNetwork/kyberswap-dex-lib/pull/1844), tested commit `f7c433d656eedd714bca0d73ec9ba7f09f8b1cf6`. Upstream adoption is pending review and merge.
+
 ## Versioning and execution context
 
 SDKs and adapters must understand the snapshot's layout, wire and model identifiers.
