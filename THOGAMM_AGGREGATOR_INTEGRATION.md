@@ -184,6 +184,26 @@ settlement uses the full caps after transfers and callbacks. These are distinct
 contract rules, so a read-only rejection at the quote threshold does not imply
 that settlement at the full cap would fail.
 
+### Gas for routing and settlement
+
+Measured with the deployed eight-token pool and current Monad gas rules:
+
+| Call / pair class | Observed gas |
+| --- | ---: |
+| `makerSwapExactInput`, same risk category | 222k–324k |
+| `makerSwapExactInput`, different risk categories | 343k–522k |
+| ERC-7815 `Buy` | 307k–2.064M; depends strongly on the search and target size |
+| `getPoolData(0,32)` | 559k cold call; about 570k RPC estimate |
+
+These are measurements at block 115786825 across $1/$100/$5,000 sizes,
+not transaction limits. Estimate the complete route with its actual caller,
+transfers, fee callbacks and calldata. `Trade.gasUsed` measures only part of
+`swap()` and is unsuitable as a transaction gas limit. Monad [charges the
+declared gas limit](https://docs.monad.xyz/developer-essentials/gas-pricing), so
+oversized limits directly worsen route cost. Reproduce cold calls with Foundry
+1.8.6 or later and `--network monad --isolate`; older builds can overcharge
+storage reads by missing Monad's page-based pricing.
+
 ### Execution widening
 
 Read-only `makerQuoteExactInput()` and `price()` calls do not include execution

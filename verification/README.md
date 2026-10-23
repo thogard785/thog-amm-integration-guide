@@ -51,3 +51,17 @@ It proves independent risk/wrapper readiness, category-anchor changes,
 preservation of spare storage bits, and cap publications with duplicate entries,
 zero caps, infinity and downward rounding. Each state byte string is a complete
 ABI `getPoolData(0,32)` result.
+
+## Cold-call gas measurements
+
+Use Foundry 1.8.6 or later with Monad page-storage pricing:
+
+```sh
+forge test --network monad --isolate --match-test test_captureGas
+```
+
+This writes `fixtures/gas-v7.jsonl`. The compressed `fixtures/gas-v7.json.gz`
+records the deployed addresses, block, tool version and measured call costs.
+`--isolate` is for this gas benchmark; keep the execution-context parity capture
+non-isolated as described above. These pool-call measurements do not replace
+estimating the actual router transaction.
