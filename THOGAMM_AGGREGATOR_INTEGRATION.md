@@ -10,7 +10,7 @@ Use `makerQuoteExactInput()` and `makerSwapExactInput()` for the shortest
 exact-input integration. The routing surface supports discovery, limits, marginal prices, and exact-output
 simulation. This guide describes the **deployed schema-7, wire-7, model-1**
 implementation on Monad. Its runtime and linked libraries were checked against
-the source used for this specification; see [deployment evidence](fixtures/deployment.json).
+the source used for this specification; see [deployment evidence](https://github.com/thogard785/thog-amm-integration-guide/blob/62f7bc0110ab68cdfc8ce4280fdbd0dfddf5f221/fixtures/deployment.json).
 Always verify the schema and model identifiers of each snapshot.
 
 The maintained integration options are the [polling Rust SDK](https://github.com/thogard785/thog-amm-poll-sdk)
@@ -25,6 +25,7 @@ not preserve an offchain pricing model.
 |---|---|
 | Network | Monad Mainnet |
 | Chain ID | `143` |
+| Verified source commit | `a38a3bc3f29262353f50a71f70eb185c54ac3d90` (implementation and seven libraries) |
 | Verified implementation | `0x709ba37580a7faf034522163353bd1547d2fb0ba` (upgradeable; integrate the proxy) |
 | Proxy | `0x80c74517BCC2D67fFE02D3ED886796272F647210` |
 | Pool ID | `0xce389e78282dedac7b18ba7f775b7602d2ab3ab171bbd6711eb0239be6ef4dcc` |
@@ -282,7 +283,7 @@ not a zero price or evidence that all sizes fail.
 
 ## Build the schema-7 model in memory
 
-Use the [published aggregator ABI](abi/ThogAMM.json) and the exact snapshot tuple below.
+Use the [published aggregator ABI](https://github.com/thogard785/thog-amm-integration-guide/blob/62f7bc0110ab68cdfc8ce4280fdbd0dfddf5f221/abi/ThogAMM.json) and the exact snapshot tuple below.
 `getPoolData(uint8,uint8)` retains its selector but its return tuple changed.
 The retired `makerSnapshot()`, `makerState()`, `makerStateV3()` and
 `makerRiskV3Ready()` selectors are absent from this release. Read all policy and
@@ -408,8 +409,8 @@ starts at zero on each swap; splitting a trade reduces this component.
 
 Reproduce the integer operations in the
 [exact quote specification](#exact-integer-quote-reference),
-[the curve implementation](https://github.com/thogard785/thog-amm-poll-sdk/blob/main/model/src/curve.rs), and
-[the shared model](https://github.com/thogard785/thog-amm-poll-sdk/blob/main/model/src/model.rs). In particular:
+[the curve implementation](https://github.com/thogard785/thog-amm-poll-sdk/blob/63107574fbc3b4e369782e5b25a0315f23061f98/model/src/curve.rs), and
+[the shared model](https://github.com/thogard785/thog-amm-poll-sdk/blob/63107574fbc3b4e369782e5b25a0315f23061f98/model/src/model.rs). In particular:
 
 - Prices use a 56-bit mantissa and 8-bit exponent. Use the lower endpoint for
   input and inventory valuation, and the upper endpoint for output conversion.
@@ -575,8 +576,8 @@ Compare integer outputs against `makerQuoteExactInput` at the **same block**
 and state. Exercise both directions, same-category wrapper pairs, trades that
 increase/reduce inventory, small raw amounts, maximum-age boundaries and
 insufficient output balance. For exact output, compare the required input and
-verify that one less raw input cannot attain the requested output. Use the [captured deployed-contract corpus](fixtures/deployed-v7.json.gz) and
-[read-only capture tool](tools/capture_quotes.py) to reproduce the comparisons.
+verify that one less raw input cannot attain the requested output. Use the [captured deployed-contract corpus](https://github.com/thogard785/thog-amm-integration-guide/blob/62f7bc0110ab68cdfc8ce4280fdbd0dfddf5f221/fixtures/deployed-v7.json.gz) and
+[read-only capture tool](https://github.com/thogard785/thog-amm-integration-guide/blob/62f7bc0110ab68cdfc8ce4280fdbd0dfddf5f221/tools/capture_quotes.py) to reproduce the comparisons.
 The SDKs and Kyber adapter test their decoders and integer outputs against this
 same corpus. Additional execution and event-replay fixtures exercise settlement
 and state transitions; see the verification record in the README.
