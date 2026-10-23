@@ -329,8 +329,8 @@ wrapper-friction curve. Output capacity is the actual output-token balance.
 Both receiving-inventory caps are separate from risk exposure. Quotes require
 the post-trade raw input-wrapper balance and gross input-category USD value to
 stay strictly below 90% of their respective caps. Include every wrapper in the
-category, including a singleton, and native MON for WMON. Credit the actual
-output payout for a same-category swap. Exceeding either quote threshold
+category, including a singleton, and native MON for WMON. Subtract the actual
+output payout from category holdings for a same-category swap. Exceeding either quote threshold
 returns the same inventory-shortage error as insufficient output balance.
 Settlement checks fresh final balances against both full caps after all
 transfers and fee callbacks; equality passes. Taker flow bypasses these checks.
@@ -430,7 +430,7 @@ event MakerWrapperCostApplied(int256 costUsdWad);
 | `MakerPageUpdated`, lane 4 | Replace wrapper kind/refund/coefficient fields and category USD targets atomically; set wrapper readiness. There is no wrapper publication counter. |
 | `MakerPageUpdated`, lane 8 | Decode the ABI arrays and replace only the named token/category caps after applying the contract's cap encoding. Control is unchanged; bits 136–137 are reserved. Initial/migration caps come from the snapshot and do not emit this event. |
 | `MakerLendingExposureUpdated` | Replace the category's signed offset and slot 7's lending sequence at bits 160–191 with the absolute emitted values. Venue 0 is Neverland; 1 is Euler. Apply the cash movements in the same transaction. |
-| `Paused` | Set maker pause bit 132 in control word 2. This owner pause also controls taker execution. |
+| `Paused` | Set maker pause bit 132 in control word 2 to the emitted boolean (clear it on `false`). This owner pause also controls taker execution. |
 | Registered token `Transfer` | Subtract when `from` is the proxy and add when `to` is the proxy. A self-transfer nets to zero. Include mint/burn transfers. |
 | WMON `Deposit` / `Withdrawal` | Apply actual wrapped-token mint/burn semantics for the supported WMON implementation. Do not count both a deposit event and a mint `Transfer` for the same movement if an implementation emits both. |
 | `MakerWmonBalanceCheckpoint` | Compare the absolute WMON balance with replay at that position; a mismatch identifies missing/incorrect WMON events. Later movements still apply. |
