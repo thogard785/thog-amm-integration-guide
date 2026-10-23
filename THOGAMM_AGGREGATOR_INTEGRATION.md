@@ -296,9 +296,10 @@ v7, even when only the original eight tokens are registered.
    block number, verify the block hash around the read and retry if it changed.
 2. Require schema 7 and matching block number, parent hash and active counts.
    `parentBlockHash` is the **parent's** hash, not `H`'s hash. The block number
-   alone cannot distinguish two forks. Read the base fee and timestamp from
-   `H`'s RPC header for execution simulation; an unpriced `eth_call` can return
-   zero in `PoolData.baseFeePerGas`.
+   alone cannot distinguish two forks. Set `gasPrice: "0x1"` on this state-read
+   `eth_call` to preserve the real `PoolData.baseFeePerGas`; reject a zero value.
+   Read the timestamp from `H`'s header. Trade simulations use the intended
+   transaction's fee fields, not this one-wei state-read setting.
 3. Decode every returned `(slot, value)` into a slot-addressed word array.
    The snapshot supplies **126 decoded words**: slots 2–127, exactly once each.
    Reject missing, duplicate or out-of-range slots. Raw storage uses
