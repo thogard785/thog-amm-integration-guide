@@ -11,7 +11,8 @@ wrapper refunds, inventory caps, event replay and settlement rules.
 | Implement your own model | [This guide](THOGAMM_AGGREGATOR_INTEGRATION.md) and [ABI](abi/ThogAMM.json) |
 
 The proxy is `0x80c74517BCC2D67fFE02D3ED886796272F647210`, on chain ID **143**.
-The deployed state format is **schema 7 / wire 7 / model 1**, with up to 32 tokens.
+The deployed state format is **schema 7 / wire 7 / model 1**. Its registry has
+capacity for 32 tokens; the current implementation compiles eight catalog tokens.
 Read `getPoolData(0,32)`. The retired `makerSnapshot()` and schema-6 SDK releases are incompatible.
 
 ## Verification
