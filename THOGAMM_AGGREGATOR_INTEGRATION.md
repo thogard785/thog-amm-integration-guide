@@ -237,6 +237,29 @@ timestamp. Use the collection-contract address assigned to the integration; an
 EOA, zero address, or the ThogAMM proxy is invalid when `extraFeePpm` is
 nonzero. The function returns the caller's net `amountOut`.
 
+When `feeAmount != 0`, the recipient must implement
+`checkSetFeeToken(address)` (150,000 gas cap) and
+`confirmFee(address,uint256,uint256)` (25,000 gas cap). The latter receives
+`(tokenOut, feeAmount, feeUsdValueWad)`, valued at the output token's lower
+price. Both callbacks run **before** the fee transfer; they must return
+successfully. Any failure reverts the whole swap.
+
+### Errors relevant to routing
+
+| Error | Interpretation |
+| --- | --- |
+| `Error(string)` (`0x08c379a0`): `maker: paused`, `maker: side off`, `maker: stale`, `maker: risk uninitialized` | The current direction/state is unavailable; refresh state and preserve the reason. |
+| `maker: balance` | Read-only output shortage or receiving token/category cap; settlement also uses this for final receiving caps. |
+| `maker: min out`, `maker: deadline`, `maker: expired` | The protected transaction's output or time constraint failed. |
+| `TRANSFER_FROM_FAILED` / `TRANSFER_FAILED` | Input balance/allowance or a failed token transfer. Settlement output shortage normally appears as `TRANSFER_FAILED`, not `maker: balance`. |
+| `Unavailable(string)` (`0x643c60f3`) | ERC-7815 availability failure, with its reason. |
+| `LimitExceeded(uint256)` (`0xcdab4c87`) / `MakerAmountTooLarge(uint256)` (`0xa2e2c946`) | Requested size exceeds the returned bound. |
+| `MakerFeeTokenSetupFailed()` (`0xbb871a31`) / `MakerFeeConfirmationFailed()` (`0xac2a70b3`) | The corresponding fee-recipient callback failed or exceeded its gas cap. |
+
+Keep the original revert data for other failures, including arithmetic or
+wrapper-domain errors. A revert is an unavailable quote for that state/size,
+not a zero price or evidence that all sizes fail.
+
 ## Build the schema-7 model in memory
 
 Use the [published aggregator ABI](abi/ThogAMM.json) and the exact snapshot tuple below.
@@ -509,32 +532,21 @@ snapshot. An event-only integration must not claim completeness for unsupported
 balance semantics. If the available feed cannot provide the required state,
 use the authoritative onchain quote for that state.
 
-### 4. Advance time, check availability and recover state
+### 4. Quote at the intended block
 
-Quote at an explicit block number, including blocks with no relevant events.
-For parity with an end-of-block RPC quote, apply every relevant transaction
-through that block. Supplying a newer block number to an old state only ages
-its prices; it does not discover intervening balance or policy changes.
-Age is `quoteBlock - postedBlock`; risk/wrapper/cap updates do not refresh
-prices. Availability requires schema 7, maker unpaused, prices enabled,
-structural and wrapper readiness set independently,
-the input bid and output ask enabled, and age within the nonzero maximum age.
-Reject unknown or identical
-endpoints, zero direct input/output, invalid arithmetic domains and output
-above the actual ERC-20 balance as the contract does.
+Refresh each block, including blocks without pool events, and attach the source
+block to each quote. Evaluate the intended landing block with its base fee;
+advancing a block number ages prices but does not predict intervening trades
+or publications. Age is `quoteBlock - postedBlock`. Only price publication
+refreshes `postedBlock`; read the configured nonzero maximum age from state.
+Use the protected settlement call's short deadline and minimum output.
 
-On a missing publication, inconsistent control word, unsupported upgrade or
-unresolved event gap, rebuild from an authoritative snapshot and diagnose the
-missing state. On a reorg, roll back the entire affected state to a common
-ancestor and replay the replacement fork, or take a fresh snapshot on it.
-Never combine prices from one fork with balances from another. A snapshot at
-`H` supersedes events through `H`; older confirmations may be useful for
-transaction attribution but cannot rewind the model.
-
-On registry replacement, also discard cached address-to-index and category
-lookups, pair locations and derived curves, even if counts stay the same.
-Historical records must retain their original address/category binding;
-old indices cannot identify assets in the replacement registry.
+Availability requires schema 7, maker unpaused, prices enabled, structural and
+wrapper readiness, enabled input bid/output ask, and accepted price age.
+Reject unknown/identical endpoints, zero direct fills, invalid arithmetic and
+insufficient output capacity as the contract does. An unsupported model or
+registry change requires a complete new snapshot and rebuilt pair/index caches.
+The SDKs document feed recovery; it does not change these pricing rules.
 
 ### 5. Verify local parity before enabling routing
 
