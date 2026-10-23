@@ -13,8 +13,8 @@ implementation on Monad. Its runtime and linked libraries were checked against
 the source used for this specification; see [deployment evidence](https://github.com/thogard785/thog-amm-integration-guide/blob/62f7bc0110ab68cdfc8ce4280fdbd0dfddf5f221/fixtures/deployment.json).
 Always verify the schema and model identifiers of each snapshot.
 
-The maintained integration options are the [polling Rust SDK](https://github.com/thogard785/thog-amm-poll-sdk)
-and [event Rust SDK](https://github.com/thogard785/thog-amm-event-sdk). Both use the
+The maintained integration options are the [polling Rust SDK](https://github.com/thogard785/thog-amm-poll-sdk/tree/a13dc7f31bd0dc057d05902aaaef53b8801d3f66)
+and [event Rust SDK](https://github.com/thogard785/thog-amm-event-sdk/tree/7f77edd84ce8bdeff5c6989167b4f39ba32e0a4d). Both use the
 same exact integer model. An independent implementation must follow the complete
 state, arithmetic and event rules below; preserving only swap selectors does
 not preserve an offchain pricing model.

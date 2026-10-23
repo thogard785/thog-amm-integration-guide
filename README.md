@@ -6,8 +6,8 @@ wrapper refunds, inventory caps, event replay and settlement rules.
 
 | Integration | Repository |
 | --- | --- |
-| One state read per refresh, then local quotes | [Polling Rust SDK](https://github.com/thogard785/thog-amm-poll-sdk), version **0.3.0** |
-| Snapshot bootstrap followed by event updates | [Event Rust SDK](https://github.com/thogard785/thog-amm-event-sdk), version **0.3.0** |
+| One state read per refresh, then local quotes | [Polling Rust SDK, review revision](https://github.com/thogard785/thog-amm-poll-sdk/tree/a13dc7f31bd0dc057d05902aaaef53b8801d3f66) |
+| Snapshot bootstrap followed by event updates | [Event Rust SDK, review revision](https://github.com/thogard785/thog-amm-event-sdk/tree/7f77edd84ce8bdeff5c6989167b4f39ba32e0a4d) |
 | Implement your own model | [This guide](THOGAMM_AGGREGATOR_INTEGRATION.md) and [ABI](abi/ThogAMM.json) |
 
 The proxy is `0x80c74517BCC2D67fFE02D3ED886796272F647210`, on chain ID **143**.
@@ -57,6 +57,8 @@ settlement and boundary captures. The Rust SDKs and Kyber adapter include copies
 of the same compressed quote fixtures and run their comparisons offline.
 
 ## Release references
+
+The SDK links above include the review fixes; the existing v0.3.0 tags below are unchanged.
 
 - [Polling SDK v0.3.0](https://github.com/thogard785/thog-amm-poll-sdk/releases/tag/v0.3.0), commit `11635f1df026c1e0ec9dde821546f0fe4729b8bf`.
 - [Event SDK v0.3.0](https://github.com/thogard785/thog-amm-event-sdk/releases/tag/v0.3.0), commit `3ae66cce1cd162ca033b478625dd3284699ef8e2`.
