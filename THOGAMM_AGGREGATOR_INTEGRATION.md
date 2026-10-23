@@ -160,6 +160,9 @@ The ERC-7815 behavior is:
   36 decimal places in human-token space. Zero is `Fraction(0, 1)`. This is not
   an average execution quote. Each supplied amount is evaluated independently
   against the same pre-trade state; the array is not a sequence of fills.
+  **One failing amount reverts the entire array**, including when a category
+  cap rejects `price([0])`. Validate each candidate size locally, or query it
+  separately; do not treat a grid spanning `sellLimit` as an executable range.
 - `swap(..., Sell, amountIn)` returns output in `Trade.calculatedAmount`.
   `swap(..., Buy, amountOut)` returns the minimum required input and transfers
   exactly `amountOut`.
