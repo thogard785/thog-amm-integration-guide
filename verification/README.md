@@ -57,3 +57,13 @@ the mainnet seed's physical shares and multipliers. JSON snapshots carry explici
 `shareBalances` for their own state, including modified fork multipliers.
 Run `cargo test --workspace --locked` in the polling SDK or `cargo test --locked`
 in the event SDK for offline comparisons. See the [result counts](../README.md#verification).
+
+## Aggregator funding and output guarantees
+
+`forge test --root verification --network monad --match-test test_integration -vv`
+checks 30 settlement cases across the five listed xStocks and three multipliers.
+It locally funds output inventory and relaxes receiving caps for synthetic rebases
+so each case reaches settlement; it does not assert live liquidity availability.
+Buy credits exceed the requested guarantee; separate router funding uses newly
+received input and preserves unrelated router funds. These focused checks execute
+the deployed token and Thog code and do not rewrite the quote fixtures.

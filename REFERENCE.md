@@ -2,7 +2,7 @@
 
 This is the schema **8 / wire 8 / model 2** numeric reference. For onboarding,
 start with the [integration guide](THOGAMM_AGGREGATOR_INTEGRATION.md). The
-[shared Rust model](https://github.com/thogard785/thog-amm-poll-sdk/tree/v0.4.0/model)
+[shared Rust model](https://github.com/thogard785/thog-amm-poll-sdk/tree/v0.4.1/model)
 implements these rules; [contract fixtures](README.md#verification) check it
 against deployed bytecode. Use integer arithmetic throughout.
 
@@ -348,6 +348,12 @@ requested output, checks the rising-branch peak if marginal remaining budget
 reaches zero, then bisects for the **smallest raw input** attaining the output.
 The executable reference is `solveExactOutput`; a rounded inverse fair price
 or a floating-point quadratic does not guarantee minimum input.
+For ERC-7815 Buy, settlement sets the guaranteed output to the requested target,
+then adds output dust before transferring an xStock. Actual recipient credit can
+exceed that target. The SDK's execution `Quote.amount_out` is this guarantee, not
+an exact balance delta: compare `received >= amount_out` under the same state and
+execution context. Funding/forwarding transfers outside Thog round independently;
+use the caller's measured newly received input and measure the final recipient.
 
 Marginal prices use `remainingSlopeQ36` and `penaltySlopeWad`, including the
 positive-risk clamp's one-sided derivative and the input volume slope above. They divide by the remaining

@@ -4,11 +4,15 @@ ThogAMM is an inventory-funded liquidity source on Monad mainnet. Use
 `makerQuoteExactInput` for a read-only quote and `makerSwapExactInput` for
 settlement with a minimum output and block deadline. For local quoting, use the
 [polling SDK](https://github.com/thogard785/thog-amm-poll-sdk) or
-[event SDK](https://github.com/thogard785/thog-amm-event-sdk), version **0.4.0**.
+[event SDK](https://github.com/thogard785/thog-amm-event-sdk), version **0.4.1**.
 
 The deployed format is **schema 8 / wire 8 / model 2**. The pool lists **13 tokens**
 as of October 27, 2026; the registry capacity is 28. Both SDKs discover the active
-registry from `getPoolData(0, 28)`.
+registry from `getPoolData(0, 28)`. Share accounting recognizes the contract's
+[nine compiled xStock addresses](https://github.com/thogard785/thog-amm-poll-sdk/blob/v0.4.1/model/src/shares.rs).
+Listing another of those nine needs no model change; extending the contract's
+xStock catalog requires a matching SDK release. Discovery alone cannot recognize
+an arbitrary new issuer token.
 
 ## Deployment
 
@@ -72,6 +76,38 @@ interface IThogAMM {
 
 Use the [complete ABI](abi/ThogAMM.json) for state, events and ERC-7815 calls.
 
+## Funding through an aggregator
+
+The SDK models the Thog call, including its own input/output share rounding.
+If a router first pulls xStocks, that funding transfer rounds independently.
+Pass the router's **newly received input**, not the requested transfer amount or
+its total balance. This fragment uses OpenZeppelin `IERC20` and
+`using SafeERC20 for IERC20;` inside your router's guarded swap, with distinct
+input/output tokens and an external recipient:
+
+```solidity
+uint256 beforeIn = tokenIn.balanceOf(address(this));
+tokenIn.safeTransferFrom(msg.sender, address(this), requestedIn);
+uint256 amountIn = tokenIn.balanceOf(address(this)) - beforeIn;
+tokenIn.forceApprove(address(thog), amountIn);
+
+uint256 beforeOut = tokenOut.balanceOf(recipient);
+uint256 guaranteedOut = thog.makerSwapExactInput(
+    address(tokenIn), address(tokenOut), amountIn,
+    minAmountOut, recipient, deadlineBlock
+);
+uint256 received = tokenOut.balanceOf(recipient) - beforeOut;
+require(received >= guaranteedOut, "Thog output below guarantee");
+// Report/use received as this hop's output.
+```
+
+Use this measured `amountIn` for the Thog quote as well. Simulate the **whole
+route**, including funding and the actual fee/account-warmth context. Existing
+router funds must stay outside this trade; reconcile residual input through your
+router's refund/accounting policy. Sending Thog output directly to the intended
+recipient avoids an extra transfer. If the router forwards it, measure that
+recipient's credit again: each forwarding transfer rounds independently.
+
 ## Quotes, limits and settlement
 
 - `getCapabilities` advertises Sell, Buy, price functions and marginal prices.
@@ -102,7 +138,12 @@ is `max(2, ceil(multiplier / 1e18))`. The direct swap applies friction **after**
 subtracting output dust; ERC-7815 applies it **before** subtracting output dust.
 Settlement sends the quoted stock output plus dust, then floors that transfer to
 shares. The returned output is the guaranteed amount; actual receipt can exceed
-it by rounding. These are contract rules, already implemented in the SDKs.
+it by rounding. The SDK's execution `Quote.amount_out` has the same meaning under
+the quoted state/context; for ERC-7815 Buy it equals the requested target. Compare
+recipient credit with `received >= amount_out`, not equality, and do not subtract
+another xStock rounding tolerance from this guarantee. Read-only quotes omit
+execution friction. The settlement return and your `minAmountOut` apply to the
+actual execution state. These contract rules are already implemented in the SDKs.
 
 Supply fee fields for Monad `eth_call`: an unpriced call can expose a zero base
 fee. State reads use `gasPrice: 0x1` to retain the block's base fee; trade simulation

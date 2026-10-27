@@ -2,18 +2,20 @@
 
 Integrate the **13-token ThogAMM pool on Monad**, including SPYx, QQQx, EWYx,
 NVDAx and TSLAx. Start with the [integration guide](THOGAMM_AGGREGATOR_INTEGRATION.md)
-for addresses, quoting and settlement.
+for addresses, quoting and settlement. Routers that pull input first should use
+the [funding example](THOGAMM_AGGREGATOR_INTEGRATION.md#funding-through-an-aggregator);
+execution output is a guarantee, so compare `received >= amount_out`.
 
 | Resource | Use |
 | --- | --- |
-| [Polling SDK v0.4.0](https://github.com/thogard785/thog-amm-poll-sdk) | Refresh complete state, then quote locally |
-| [Event SDK v0.4.0](https://github.com/thogard785/thog-amm-event-sdk) | Replay pool/share events and refresh issuer multipliers |
+| [Polling SDK v0.4.1](https://github.com/thogard785/thog-amm-poll-sdk) | Refresh complete state, then quote locally |
+| [Event SDK v0.4.1](https://github.com/thogard785/thog-amm-event-sdk) | Replay pool/share events and refresh issuer multipliers |
 | [ABI](abi/ThogAMM.json) · [Numeric reference](REFERENCE.md) | Implement another language or transport |
 
 Proxy: `0x80c74517BCC2D67fFE02D3ED886796272F647210`. Chain ID: **143**.
 State format: **schema 8 / wire 8 / model 2**, capacity 28 tokens.
 Read `getPoolData(0, 28)` and the listed xStocks’ share/multiplier state at one
-block hash. SDK **0.4.0** replaces the incompatible schema-7 release.
+block hash. SDK **0.4.1** replaces the incompatible schema-7 release.
 
 ## Verification
 

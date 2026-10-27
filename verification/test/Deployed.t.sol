@@ -64,7 +64,11 @@ interface IThogAMM {
     function makerSwapExactInput(address tokenIn,address tokenOut,uint256 amountIn,uint256 minimum,address recipient,uint256 deadline) external returns(uint256);
     function swap(bytes32 poolId,address tokenIn,address tokenOut,uint8 side,uint256 amount) external returns(bytes memory);
 }
-interface IToken { function approve(address,uint256) external returns(bool); }
+interface IToken {
+    function approve(address,uint256) external returns(bool);
+    function transfer(address,uint256) external returns(bool);
+    function balanceOf(address) external view returns(uint256);
+}
 contract DeployedTest is Test {
     using stdStorage for StdStorage;
 
@@ -124,6 +128,64 @@ contract DeployedTest is Test {
         vm.serializeAddress(key,"shareTokens",tokens);
         vm.serializeUint(key,"shares",shares);vm.serializeUint(key,"multipliers",multipliers);
         return vm.serializeBytes(key,"snapshot",abi.encode(p));
+    }
+    // Small integration checks use deployed token/Thog code, not SDK arithmetic.
+    function integrationMultiplier(address token,uint256 world) internal {
+        uint256 multiplier=world==0?1e18:world==1?1234567890123456789:3100000000000000001;
+        vm.store(token,bytes32(uint256(0x10b)),bytes32(multiplier));
+        vm.store(token,bytes32(uint256(0x10c)),bytes32(0));
+    }
+    function test_integrationBuyGuaranteesTargetButCreditsMore() public {
+        for(uint256 world;world<3;world++) for(uint256 i=8;i<state.tokens.length;i++) {
+            uint256 checkpoint=vm.snapshotState();
+            address token=state.tokens[i].token;
+            integrationMultiplier(token,world);
+            // Some listed stocks have no pool inventory at the capture block.
+            vm.prank(CALLER); assertTrue(IToken(token).transfer(PROXY,1e18));
+            uint256 beforeOut=IToken(token).balanceOf(CALLER);
+            vm.txGasPrice(2*block.basefee); vm.cool(AUCTION);
+            vm.prank(CALLER);
+            // Buy fixes guaranteed output at one raw unit; it returns input required.
+            (bool success,)=PROXY.call(abi.encodeWithSignature(
+                "swap(bytes32,address,address,uint8,uint256)",POOL,state.tokens[0].token,token,1,1
+            ));
+            assertTrue(success);
+            uint256 received=IToken(token).balanceOf(CALLER)-beforeOut;
+            assertGt(received,1,"actual xStock credit can exceed the Buy target");
+            assertTrue(vm.revertToStateAndDelete(checkpoint));
+        }
+    }
+    function test_integrationFundingUsesNewCreditAndPreservesExistingFunds() public {
+        address router=address(0xCAFE); address recipient=address(0xD00D);
+        uint256 roundedFundingCases;
+        for(uint256 world;world<3;world++) for(uint256 i=8;i<state.tokens.length;i++) {
+            uint256 checkpoint=vm.snapshotState();
+            IToken token=IToken(state.tokens[i].token);
+            integrationMultiplier(address(token),world);
+            // Isolate transfer semantics from caps exceeded by a synthetic rebase.
+            setField(101+i/10,i%10*24,24,0xffffff);
+            uint256 category=state.tokens[i].category;
+            setField(104+category/10,category%10*24,24,0xffffff);
+            // Unrelated input already held by the router must not enter this swap.
+            vm.prank(CALLER); assertTrue(token.transfer(router,37));
+            uint256 beforeIn=token.balanceOf(router);
+            uint256 requestedIn=1e36/price(i)+7;
+            vm.prank(CALLER); assertTrue(token.transfer(router,requestedIn));
+            uint256 amountIn=token.balanceOf(router)-beforeIn;
+            if(amountIn<requestedIn) roundedFundingCases++;
+            vm.prank(router); assertTrue(token.approve(PROXY,amountIn));
+            IToken output=IToken(state.tokens[0].token);
+            uint256 beforeOut=output.balanceOf(recipient);
+            vm.txGasPrice(2*block.basefee); vm.cool(AUCTION);
+            vm.prank(router);
+            uint256 guaranteedOut=IThogAMM(PROXY).makerSwapExactInput(
+                address(token),address(output),amountIn,1,recipient,block.number
+            );
+            assertGe(output.balanceOf(recipient)-beforeOut,guaranteedOut);
+            assertGe(token.balanceOf(router),beforeIn,"unrelated input was spent");
+            assertTrue(vm.revertToStateAndDelete(checkpoint));
+        }
+        assertGt(roundedFundingCases,0,"exercise funding below requested amount");
     }
     function test_captureExecution() public {
         vm.writeFile(OUTPUT,"");
