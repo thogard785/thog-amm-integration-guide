@@ -1,10 +1,11 @@
-# Maker v8 exact-quote and mirror specification
+# ThogAMM exact quote reference
 
-This is the schema **8 / wire 8 / model 2** numeric reference. For onboarding,
-start with the [integration guide](THOGAMM_AGGREGATOR_INTEGRATION.md). The
-[shared Rust model](https://github.com/thogard785/thog-amm-poll-sdk/tree/v0.4.1/model)
-implements these rules; [contract fixtures](README.md#verification) check it
-against deployed bytecode. Use integer arithmetic throughout.
+This is the pending **schema 8 / wire 8 / model 3** numeric reference. For onboarding,
+see the [integration guide](THOGAMM_AGGREGATOR_INTEGRATION.md). The
+[shared Rust model](https://github.com/thogard785/thog-amm-poll-sdk/tree/codex/dynamic-maker-defense/model)
+is the executable reference for the pending SDK 0.5.0. Verify the pool's model
+identity before selecting an SDK; this change does not deploy model 3.
+Floating-point approximations cannot reproduce exact integer execution.
 
 The public quote, swap and ERC-7815 selectors and return shapes are unchanged.
 The old packed mirror getters are removed. `getPoolData(uint8,uint8)` retains its selector
@@ -13,7 +14,7 @@ calls the unchanged quote functions does not need to implement these internals.
 
 For a complete bootstrap, subscription and recovery procedure, start with the
 [aggregator onboarding guide](THOGAMM_AGGREGATOR_INTEGRATION.md#build-the-schema-8-model-in-memory)
-and the [ABI](abi/ThogAMM.json). This specification
+and [registry/metadata guide](THOGAMM_AGGREGATOR_INTEGRATION.md). This specification
 supplies the exact numeric and wire rules used by that model.
 
 Storage uses `1 << 255` as a nonzero encoding for empty words. Inventory
@@ -28,7 +29,7 @@ Do not apply physical-marker decoding to its returned values.
 
 1. Call `getPoolData(0, 28)` at one pinned block hash. Check `schemaVersion == 8`,
    active counts in `1..28`, and the registry metadata. Decode the returned
-   `StorageWord[]` by its explicit slot numbers. Verify layout 8, wire 8 and model 2
+   `StorageWord[]` by its explicit slot numbers. Verify layout 8, wire 8 and model 3
    in slot 8 bits 160–215, and require its registry generation to be nonzero. Quote words are slots 2–127. `portfolioBalances` contains **all** registered token balances even
    if metadata pagination is used. `nativeBalance` is separate. Bind the returned
    block number and parent hash to the selected RPC header; the parent hash is
@@ -131,7 +132,7 @@ share each token word; bits 225–255 are reserved.
 | `87+i/4`, field `i%4` of 64 bits | Wrapper coefficient, scaled by `1e18` |
 | `94+c/4`, field `c%4` of 64 bits | Category target USD, scaled by `1e6` |
 | 7 bits 160–191 | Lending sequence |
-| 8 bits 160–167 / 168–175 / 176–183 | Physical layout / publication wire / quote model identifiers: 8 / 8 / 2 |
+| 8 bits 160–167 / 168–175 / 176–183 | Physical layout / publication wire / quote model identifiers: 8 / 8 / 3 |
 | 8 bits 184–215 | Nonzero registry generation |
 | `101+i/10`, offset `24*(i%10)` | Token inventory cap in raw ERC-20 units, packed mantissa/shift |
 | `104+c/10`, offset `24*(c%10)` | Category inventory cap in USD-wad, packed mantissa/shift |
@@ -202,7 +203,7 @@ order. The cap setter does not change control or readiness; bits 136–137 remai
 reserved. Initialization installs fixed packed constants calculated offchain without a
 lane-8 event. The v7-to-v8 migration preserves existing caps. Bootstrap both
 cases from the snapshot.
-Read current cap values from the snapshot; policy publications can change them.
+See the [defaults and manual workflow](THOGAMM_AGGREGATOR_INTEGRATION.md#quotes-limits-and-settlement).
 
 Wrapper kind 0 is none, 1 fixed, 2 sliding. None requires zero coefficient and
 refund. Fixed requires a coefficient below `1e18` and zero refund. Sliding
@@ -265,6 +266,9 @@ with full precision must use mul-div arithmetic, not overflowing uint256
 intermediates. The reference implementations specify the arithmetic domain.
 
 For input token `i`, output token `o`, and categories `a`, `b`:
+
+The default age widening is 50 units (0.5 bp) per elapsed block. The publisher
+encodes the configured value in the risk lane; models read the stored value.
 
 1. Add both category widths, the input token’s bid width, the output token’s ask width, the learned pair premium, and `age * widening` into `spread`. Require `spread < 1e6`.
 2. Set `d[c] = covariance[a,c] - covariance[b,c]` and
@@ -367,13 +371,49 @@ output balance minus output dust, floored at zero. These are upper bounds; the e
 caps and the nonlinear curve. `priceDerivative` and
 `swapToPrice` remain `NotImplemented` and are not advertised capabilities.
 
-Quote functions omit execution widening. Execution applies the 10 bp reduction
-once when effective gas price exceeds twice the block base fee or the FastLane
-AuctionHandler is already warm. Direct swaps use
-`floor(readOnlyAmountOut * 9990 / 10000)`; ERC-7815 uses
-`max(0, floor(rawOut * 9990 / 10000) - outputDust)`. Exact-output execution solves
-that ERC-7815 curve for minimum input. Its initial bracket includes both output
-and input dust; its independent buy limit is physical output balance minus dust.
+Quote functions omit execution defense but include stored age widening.
+
+Execution applies a dynamic output reduction. Evaluate the following rows in
+order using the transaction's **effective** gas price and the current block's
+base fee; every gas-price comparison is strictly greater-than.
+
+| First matching condition | Raw defense | Defense after a valuation update earlier in this block |
+| --- | ---: | ---: |
+| FastLane AuctionHandler is already warm | 12 bp | 2 bp |
+| `gasPrice > 2.5 * baseFee` | 12 bp | 2 bp |
+| `gasPrice > 2 * baseFee` | 8 bp | 1 bp |
+| `gasPrice > 1.5 * baseFee` | 6 bp | 0.5 bp |
+| Otherwise | 0 bp | 0 bp |
+
+The same-block column applies exactly when the latest accepted valuation's
+`postedBlock` equals the execution block: `max(rawDefense / 4 - 1 bp, 0)`.
+A risk, wrapper, cap or inventory update alone does not qualify. The raw defense
+applies when the latest valuation is from an earlier block. Warmth and gas-price
+triggers do not stack. With zero base fee, any positive gas price selects 12 bp;
+a cold zero-price transaction selects zero. Fractional thresholds are exact,
+including odd base fees; implementations compare differences to avoid overflow.
+
+The configured age widening is **0.5 bp per elapsed block** without a valuation
+update (`widen_per_block_bps: 0.50`, encoded as 50 in 0.01 bp units). It adds to
+the pair's spread and affects both read-only and execution quotes. Execution
+defense is a separate multiplicative output reduction, not another age term.
+
+The SDK's default execution methods assume a cold AuctionHandler; the
+`*_with_context` methods accept explicit warmth. For EIP-1559, effective gas price
+is `min(maxFeePerGas, baseFee + maxPriorityFeePerGas)`. `at_block(number, base_fee)`
+sets both age and the block/base-fee context used by this policy; it cannot predict
+an intervening valuation publication, trade or inventory change.
+
+Carry the selected defense in **0.01 bp units** (`friction`), with raw values
+0/600/800/1200 and same-block values 0/50/100/200. The output factor is
+`(1_000_000 - friction) / 1_000_000`. Direct and extra-fee swaps use
+`floor(readOnlyAmountOut * (1_000_000 - friction) / 1_000_000)`;
+ERC-7815 Sell/Buy use
+`max(0, floor(rawOut * (1_000_000 - friction) / 1_000_000) - outputDust)`.
+Apply the same factor to ERC-7815's returned marginal-price numerator.
+Exact-output execution solves that ERC-7815 curve for minimum input. Its initial
+bracket includes both output and input dust; its independent buy limit is
+physical output balance minus dust.
 Marginal remaining slope uses `max(0, amountIn - inputDust)` for input notional.
 Integrator fees are deducted before checking the caller's minimum output, and
 each recipient/fee transfer independently floors to shares. Simulate the actual
