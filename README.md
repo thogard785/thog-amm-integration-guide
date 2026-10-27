@@ -1,68 +1,39 @@
-# ThogAMM integration guide
+# ThogAMM integration
 
-Integrate ThogAMM on Monad using the [complete integration guide](THOGAMM_AGGREGATOR_INTEGRATION.md).
-It includes the deployed schema-7 snapshot ABI, exact local quote math, volume charges,
-wrapper refunds, inventory caps, event replay and settlement rules.
+Integrate the **13-token ThogAMM pool on Monad**, including SPYx, QQQx, EWYx,
+NVDAx and TSLAx. Start with the [integration guide](THOGAMM_AGGREGATOR_INTEGRATION.md)
+for addresses, quoting and settlement.
 
-| Integration | Repository |
+| Resource | Use |
 | --- | --- |
-| One state read per refresh, then local quotes | [Polling Rust SDK](https://github.com/thogard785/thog-amm-poll-sdk), version **0.3.0** |
-| Snapshot bootstrap followed by event updates | [Event Rust SDK](https://github.com/thogard785/thog-amm-event-sdk), version **0.3.0** |
-| Implement your own model | [This guide](THOGAMM_AGGREGATOR_INTEGRATION.md) and [ABI](abi/ThogAMM.json) |
+| [Polling SDK v0.4.0](https://github.com/thogard785/thog-amm-poll-sdk) | Refresh complete state, then quote locally |
+| [Event SDK v0.4.0](https://github.com/thogard785/thog-amm-event-sdk) | Replay pool/share events and refresh issuer multipliers |
+| [ABI](abi/ThogAMM.json) · [Numeric reference](REFERENCE.md) | Implement another language or transport |
 
-The proxy is `0x80c74517BCC2D67fFE02D3ED886796272F647210`, on chain ID **143**.
-The deployed state format is **schema 7 / wire 7 / model 1**, with up to 32 tokens.
-Read `getPoolData(0,32)`. The retired `makerSnapshot()` and schema-6 SDK releases are incompatible.
+Proxy: `0x80c74517BCC2D67fFE02D3ED886796272F647210`. Chain ID: **143**.
+State format: **schema 8 / wire 8 / model 2**, capacity 28 tokens.
+Read `getPoolData(0, 28)` and the listed xStocks’ share/multiplier state at one
+block hash. SDK **0.4.0** replaces the incompatible schema-7 release.
 
 ## Verification
 
-The in-memory specification was checked against the deployed implementation and
-all seven linked libraries, whose runtime bytes match the compiled source.
-[Deployment evidence](fixtures/deployment.json) records their addresses and SHA-256 hashes.
-The independent Rust and Go implementations pass the same **9,240 comparisons**:
+Both Rust SDKs pass **39,936 contract comparisons** with exact integer results.
+Expected values come from contract calls, independently of the SDK.
 
-| Corpus | Cases | Exact successful results | Matching rejections |
+| Corpus | Cases | Exact successes | Matching rejections |
 | --- | ---: | ---: | ---: |
-| [Mainnet queries](fixtures/deployed-v7.json.gz): three historical blocks, all directed pairs, exact input, marginal price and limits | 2,016 | 1,308 | 708 |
-| [Monad-fork execution](fixtures/execution-v7.json.gz): exact input/output and explicit gas-price/warmth context | 1,680 | 1,261 | 419 |
-| [Fork boundary states](fixtures/boundaries-v7.json.gz): volume, wrappers, caps and price age | 5,544 | 2,793 | 2,751 |
-| **Total per implementation** | **9,240** | **5,362** | **3,878** |
+| [Mainnet reads](fixtures/deployed-v8.json.gz), all 156 directed pairs | 1,872 | 954 | 918 |
+| [Fork settlement](fixtures/execution-v8.json.gz), direct input and ERC-7815 Buy, three multiplier states and three friction contexts | 14,040 | 7,954 | 6,086 |
+| [Fork boundaries](fixtures/boundaries-v8.json.gz), 14 policy/inventory contexts | 24,024 | 9,982 | 14,042 |
+| **Total** | **39,936** | **18,890** | **21,046** |
 
-The mainnet corpus is pinned to blocks **115786825, 115786925 and 115787025**.
-It includes 879 successful exact-input cases charging volume cost and 222 with
-a net wrapper refund. Results are raw contract return bytes, not values generated
-by either local model. Error comparisons establish rejection parity; SDK error
-objects do not reproduce Solidity revert encodings.
+[Event replay](fixtures/events-v8.json.gz) matches 200 consecutive mainnet
+snapshots and 220 logs, including all words, metadata, physical shares, balances,
+issuer multipliers and native MON. [Publication fixtures](fixtures/events-fork-v8.bin.gz)
+cover readiness, anchor changes, spare bits and caps.
+[Runtime evidence](fixtures/deployment.json) records the implementation and eight
+linked libraries, checked byte-for-byte against compiled artifacts.
 
-[Event fixtures](fixtures/events-v7.json.gz) contain 200 consecutive mainnet
-blocks and 204 relevant logs. Replayed state matches every fresh snapshot:
-all 126 words, token metadata, token balances and native MON. Additional
-[publication fixtures](fixtures/events-fork-v7.bin.gz) test independent readiness,
-anchor changes, spare-bit preservation and exact cap encoding.
-
-Reproduce the mainnet reads without sending transactions:
-
-```sh
-python3 tools/verify_runtime.py --rpc https://rpc.monad.xyz
-python3 tools/capture_quotes.py --rpc https://rpc.monad.xyz --blocks 115786825,115786925,115787025
-python3 tools/capture_events.py --rpc https://rpc.monad.xyz
-```
-
-See [fork verification instructions](verification/README.md) to reproduce the
-settlement and boundary captures. The Rust SDKs and Kyber adapter include copies
-of the same compressed quote fixtures and run their comparisons offline.
-
-## Release references
-
-- [Polling SDK v0.3.0](https://github.com/thogard785/thog-amm-poll-sdk/releases/tag/v0.3.0), commit `11635f1df026c1e0ec9dde821546f0fe4729b8bf`.
-- [Event SDK v0.3.0](https://github.com/thogard785/thog-amm-event-sdk/releases/tag/v0.3.0), commit `3ae66cce1cd162ca033b478625dd3284699ef8e2`.
-- [Kyber adapter PR #1844](https://github.com/KyberNetwork/kyberswap-dex-lib/pull/1844), tested commit `f7c433d656eedd714bca0d73ec9ba7f09f8b1cf6`. Upstream adoption is pending review and merge.
-
-## Versioning and execution context
-
-SDKs and adapters must understand the snapshot's layout, wire and model identifiers.
-An implementation upgrade, changed registry generation, missing events or a reorg
-requires appropriate state recovery. A matching ABI alone does not establish pricing
-compatibility. The guide distinguishes read-only quotes, execution widening and
-post-transfer cap checks. Exactness refers to the same complete state, block and
-execution context; a later inclusion block can have different prices or inventory.
+See [verification instructions](verification/README.md) to reproduce the captures.
+All fork tests are local. Error parity means matching acceptance/rejection;
+SDK errors do not reproduce Solidity revert bytes.

@@ -1,8 +1,25 @@
-# Reproduce the deployed-bytecode fork checks
+# Reproduce schema-8 verification
 
-Use a Monad-enabled Foundry build supporting `--network monad`. The checked
-capture used Foundry 1.7.1-monad, Solidity 0.8.28, and the forge-std revision below.
-Run from this repository's root:
+The fixtures use the deployed ThogAMM proxy, token code and linked libraries at
+Monad block **117074438**. Expected results are contract return bytes; the SDK
+never generates its own expected values.
+
+## Read-only mainnet captures
+
+```sh
+python3 tools/verify_runtime.py --rpc https://rpc.monad.xyz
+python3 tools/capture_quotes.py --rpc https://rpc.monad.xyz --blocks 117074438
+python3 tools/capture_events.py --rpc https://rpc.monad.xyz --start 117074438 --stop 117074638
+```
+
+Historical capture requires an archive-capable endpoint. Pool and issuer reads
+use EIP-1898 block hashes. The runtime verifier checks the proxy implementation
+and SHA-256 hashes in [deployment.json](../fixtures/deployment.json).
+
+## Local fork captures
+
+Use a Monad-enabled Foundry build supporting `--network monad`, Solidity 0.8.28
+and forge-std revision `c0f966cb111f621bfb283b2a388bc7be18953bba`:
 
 ```sh
 cd verification
@@ -11,43 +28,32 @@ cd ..
 MONAD_RPC=https://rpc.monad.xyz forge test --root verification --network monad -vv
 python3 tools/pack_execution.py
 python3 tools/pack_boundaries.py
-python3 -c 'import gzip,pathlib; p=pathlib.Path("fixtures/events-fork-v7.bin"); p.with_suffix(".bin.gz").write_bytes(gzip.compress(p.read_bytes(),mtime=0))'
+python3 -c 'import gzip,pathlib; p=pathlib.Path("fixtures/events-fork-v8.bin"); p.with_suffix(".bin.gz").write_bytes(gzip.compress(p.read_bytes(),mtime=0))'
 ```
 
-These are local fork tests. They use the actual proxy, implementation, linked
-libraries and token code at block **115786825**. They do not redeploy the pricing
-code, sign transactions or broadcast anything to mainnet. Only the test caller's
-funds and approvals are supplied for execution. Boundary cases additionally
-change local fork policy words, and publication cases call the deployed owner
-setters with a local impersonation. No mainnet state changes.
+Tests supply only local caller funds/allowances, impersonate the owner for
+publication checks, and change local policy/issuer state for boundary checks.
+They do not sign or broadcast transactions. Do not add `--isolate`: it resets
+the gas-price/account-warmth context under test. Each case snapshots and restores
+fork state; measured harness gas is not a cold-transaction gas estimate.
 
-Do **not** add `--isolate`: transaction isolation resets the gas-price/account-
-warmth context being tested. Each execution case instead snapshots and reverts
-fork state, explicitly sets effective gas price and the AuctionHandler's warmth,
-and invokes the deployed settlement function. The cold threshold, threshold+1
-and warm-account cases match the local models exactly.
+| Fixture | Coverage |
+| --- | --- |
+| `deployed-v8.json.gz` | 1,872 read-only calls across all 156 directed pairs |
+| `execution-v8.json.gz` | 14,040 direct-input / ERC-7815 Buy calls; live, 1.234567890123456789 and 3.100000000000000001 stock multipliers; cold threshold, threshold+1 and warm AuctionHandler |
+| `boundaries-v8.json.gz` | 24,024 calls: baseline, zero lambda, fixed/refund wrappers, invalid wrapper domain, token/category caps, age limits, two non-unit multipliers, empty stocks, physical donations and the valid inventory value `1 << 255` |
+| `events-v8.json.gz` | 200 consecutive blocks, 220 logs, plus issuer state at every block |
+| `events-fork-v8.bin.gz` | Risk/wrapper readiness, anchor changes, spare bits and cap publications |
 
-`execution-v7.json.gz` contains 1,680 direct exact-input and ERC-7815 Buy calls,
-including zero amounts, tiny raw values, all 56 directed pairs, both successful
-settlement and contract reverts. Exact-output results are the returned required
-input; token output is exactly the specified target. The measured gas in this
-fixture reflects the test harness's shared access context and is not a promise
-of cold transaction gas.
-
-`boundaries-v7.json.gz` contains 5,544 calls in nine policy/block contexts:
-original state, zero lambda, fixed wrappers, stronger sliding output refund,
-nonpositive wrapper value, tight receiving-token cap, zero category cap,
-maximum valid price age and the first stale block. Every expected result is
-returned by deployed bytecode; none is calculated with the SDK being tested.
-
-`events-fork-v7.bin.gz` is ABI encoding of `EventSet[]` where:
+The binary publication fixture is ABI encoding of:
 
 ```solidity
 struct Log { bytes32[] topics; bytes data; address emitter; }
 struct EventSet { bytes beforeState; bytes afterState; Log[] logs; }
 ```
 
-It proves independent risk/wrapper readiness, category-anchor changes,
-preservation of spare storage bits, and cap publications with duplicate entries,
-zero caps, infinity and downward rounding. Each state byte string is a complete
-ABI `getPoolData(0,32)` result.
+Each state is a complete ABI `getPoolData(0, 28)` return. Publication cases retain
+the mainnet seed's physical shares and multipliers. JSON snapshots carry explicit
+`shareBalances` for their own state, including modified fork multipliers.
+Run `cargo test --workspace --locked` in the polling SDK or `cargo test --locked`
+in the event SDK for offline comparisons. See the [result counts](../README.md#verification).

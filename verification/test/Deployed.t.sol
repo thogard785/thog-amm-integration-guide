@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.28;
 import {Test} from "forge-std/Test.sol";
+import {stdStorage, StdStorage} from "forge-std/StdStorage.sol";
 import {Vm} from "forge-std/Vm.sol";
 interface IThogAMM {
     struct TokenMetadata {
@@ -65,16 +66,18 @@ interface IThogAMM {
 }
 interface IToken { function approve(address,uint256) external returns(bool); }
 contract DeployedTest is Test {
+    using stdStorage for StdStorage;
 
     address constant PROXY=0x80c74517BCC2D67fFE02D3ED886796272F647210;
     address constant AUCTION=0xD32EdF6642D917DbBE7B8BF8e5d6F5df6a9FFF58;
     bytes32 constant POOL=0xce389e78282dedac7b18ba7f775b7602d2ab3ab171bbd6711eb0239be6ef4dcc;
     address constant CALLER=address(0xBEEF);
-    string constant OUTPUT="../fixtures/execution-v7.jsonl";
+    string constant OUTPUT="../fixtures/execution-v8.jsonl";
     IThogAMM.PoolData state;
     function setUp() public {
-        vm.createSelectFork(vm.envOr("MONAD_RPC",string("https://rpc.monad.xyz")),115786825);
-        state=IThogAMM(PROXY).getPoolData(0,32);
+        vm.createSelectFork(vm.envOr("MONAD_RPC",string("https://rpc.monad.xyz")),117074438);
+        state=IThogAMM(PROXY).getPoolData(0,28);
+        assertEq(state.schemaVersion,8); assertEq(state.tokens.length,13);
         for(uint256 i;i<state.tokens.length;i++) {
             address token=state.tokens[i].token;
             fund(token,1e30);
@@ -84,7 +87,7 @@ contract DeployedTest is Test {
     // Fund only the test caller. AUSD stores a packed balance, so discover
     // its field without changing token code or the pool's inventory.
     function fund(address token,uint256 amount) internal {
-        bytes memory query=abi.encodeWithSignature("balanceOf(address)",CALLER);
+        bytes memory query=abi.encodeWithSignature(isStock(token) ? "sharesOf(address)" : "balanceOf(address)",CALLER);
         vm.record(); (bool ok,)=token.staticcall(query); assertTrue(ok);
         (bytes32[] memory slots,)=vm.accesses(token);
         for(uint256 i=slots.length;i>0;i--) {
@@ -99,14 +102,48 @@ contract DeployedTest is Test {
         revert("cannot fund test caller");
     }
     function price(uint256 i) internal view returns(uint256) {
-        uint256 w=state.words[21+i/4-2].value >> (i%4*64);
+        uint256 w=state.words[20+i/4-2].value >> (i%4*64);
         uint64 packed=uint64(w);
         return uint256(uint56(packed))*10**(18-uint8(packed>>56));
     }
+    function isStock(address token) internal view returns(bool) {
+        for(uint256 i=8;i<state.tokens.length;i++) if(state.tokens[i].token==token) return true;
+        return false;
+    }
+    function snapshotJson(string memory key,IThogAMM.PoolData memory p) internal returns(string memory) {
+        address[] memory tokens=new address[](p.tokens.length-8);
+        uint256[] memory shares=new uint256[](tokens.length);
+        uint256[] memory multipliers=new uint256[](tokens.length);
+        for(uint256 i;i<tokens.length;i++) {
+            tokens[i]=p.tokens[i+8].token;
+            (bool ok,bytes memory data)=tokens[i].staticcall(abi.encodeWithSignature("sharesOf(address)",PROXY));
+            assertTrue(ok);shares[i]=abi.decode(data,(uint256));
+            (ok,data)=tokens[i].staticcall(abi.encodeWithSignature("getCurrentMultiplier()"));
+            assertTrue(ok);(multipliers[i],,)=abi.decode(data,(uint256,uint256,uint256));
+        }
+        vm.serializeAddress(key,"shareTokens",tokens);
+        vm.serializeUint(key,"shares",shares);vm.serializeUint(key,"multipliers",multipliers);
+        return vm.serializeBytes(key,"snapshot",abi.encode(p));
+    }
     function test_captureExecution() public {
         vm.writeFile(OUTPUT,"");
-        bytes memory encoded=abi.encode(state);
-        string memory json=vm.serializeBytes("snapshot","snapshot",encoded);
+        for(uint256 world;world<3;world++) {
+            uint256 checkpoint=vm.snapshotState();
+            this.captureExecutionWorld(world);
+            assertTrue(vm.revertToStateAndDelete(checkpoint));
+        }
+    }
+    function captureExecutionWorld(uint256 world) external {
+        if(world!=0) {
+            for(uint256 i=8;i<state.tokens.length;i++) {
+                address token=state.tokens[i].token;
+                vm.store(token,bytes32(uint256(0x10b)),bytes32(world==1?uint256(1234567890123456789):uint256(3100000000000000001)));
+                vm.store(token,bytes32(uint256(0x10c)),bytes32(0));
+            }
+            state=IThogAMM(PROXY).getPoolData(0,28);
+        }
+        vm.serializeUint("snapshot","world",world);
+        string memory json=snapshotJson("snapshot",state);
         vm.writeLine(OUTPUT,json);
         for(uint256 i;i<state.tokens.length;i++) for(uint256 j;j<state.tokens.length;j++) {
             if(i==j) continue;
@@ -126,42 +163,45 @@ contract DeployedTest is Test {
     }
     struct EventSet { bytes beforeState; bytes afterState; Vm.Log[] logs; }
     function capturePublication(bytes memory data) internal returns(EventSet memory e) {
-        e.beforeState=abi.encode(IThogAMM(PROXY).getPoolData(0,32));
+        e.beforeState=abi.encode(IThogAMM(PROXY).getPoolData(0,28));
         vm.roll(block.number+1);vm.recordLogs();
         vm.prank(0xA01E5634faA6242EB079c3D6d1B545d163659234);
         (bool success,bytes memory reason)=PROXY.call(data);if(!success) assembly {revert(add(reason,32),mload(reason))}
-        e.logs=vm.getRecordedLogs();e.afterState=abi.encode(IThogAMM(PROXY).getPoolData(0,32));
+        e.logs=vm.getRecordedLogs();e.afterState=abi.encode(IThogAMM(PROXY).getPoolData(0,28));
     }
     function test_capturePublications() public {
-        // Preserve physical spare bits across all publication lanes, and prove
-        // that risk/wrapper readiness advances independently.
-        setField(2,134,2,0);setField(29,255,1,1);setField(9,250,1,1);
-        uint256[] memory risk=new uint256[](8);
+        setField(2,134,2,0);setField(27,255,1,1);setField(9,250,1,1);
+        uint256 n=state.tokens.length;uint256 c=state.categories.length;
+        uint256 catWords=(c+2)/3;uint256 covWords=(c*(c+1)/2+15)/16;
+        uint256 policyWords=(n+4)/5;uint256 pairWords=(n*(n-1)/2+15)/16;
+        uint256[] memory risk=new uint256[](1+catWords+covWords+policyWords+pairWords);
         uint256 control=state.words[0].value;
         uint256 generation=(state.words[8-2].value>>184)&type(uint32).max;
         uint256 lending=(state.words[7-2].value>>160)&type(uint32).max;
-        risk[0]=7|(8<<8)|(5<<16)|(uint256(17)<<24)|(((control>>138)&255)<<56)|(((control>>146)&65535)<<64)|(lending<<112)|(generation<<144);
-        risk[1]=state.words[29-2].value; risk[2]=state.words[30-2].value;
-        // Category zero uses another registered stablecoin as its new anchor.
+        risk[0]=8|(n<<8)|(c<<16)|(uint256(17)<<24)|(((control>>138)&255)<<56)|(((control>>146)&65535)<<64)|(lending<<112)|(generation<<144);
+        uint256 cursor=1;
+        for(uint256 i;i<catWords;i++)risk[cursor++]=state.words[27+i-2].value;
         risk[1]=(risk[1]&~(uint256(31)<<80))|(uint256(2)<<80);
-        risk[3]=state.words[40-2].value;
-        for(uint256 i;i<8;i++) {
+        for(uint256 i;i<covWords;i++)risk[cursor++]=state.words[37+i-2].value;
+        for(uint256 i;i<n;i++) {
             uint256 token=state.words[9+i/3-2].value>>(i%3*75);
             uint256 policy=((token>>15)&65535)|(((token>>43)&65535)<<16)|(uint256(37+i)<<32);
-            risk[4+i/5]|=policy<<(i%5*48);
+            risk[cursor+i/5]|=policy<<(i%5*48);
         }
-        risk[6]=state.words[73-2].value;risk[7]=state.words[74-2].value;
+        cursor+=policyWords;
+        for(uint256 i;i<pairWords;i++)risk[cursor++]=state.words[63+i-2].value;
         bytes memory packed;for(uint256 i;i<risk.length;i++)packed=bytes.concat(packed,bytes32(risk[i]));
         EventSet[] memory events=new EventSet[](3);
         events[0]=capturePublication(abi.encodeWithSignature("pushRiskParams(bytes)",packed));
-        uint256[] memory wrapper=new uint256[](6);wrapper[0]=7|(8<<8)|(5<<16)|(generation<<32);
-        for(uint256 i;i<8;i++) {
+        uint256 wrapperWords=(n+2)/3;
+        uint256[] memory wrapper=new uint256[](1+wrapperWords+(c+3)/4);wrapper[0]=8|(n<<8)|(c<<16)|(generation<<32);
+        for(uint256 i;i<n;i++) {
             uint256 token=state.words[9+i/3-2].value>>(i%3*75);
-            uint256 coefficient=(state.words[104+i/4-2].value>>(i%4*64))&type(uint64).max;
+            uint256 coefficient=(state.words[87+i/4-2].value>>(i%4*64))&type(uint64).max;
             uint256 field=coefficient|(((token>>31)&4095)<<64);
             wrapper[1+i/3]|=field<<(i%3*76);
         }
-        wrapper[4]=state.words[112-2].value;wrapper[5]=state.words[113-2].value;
+        for(uint256 i;i<(c+3)/4;i++)wrapper[1+wrapperWords+i]=state.words[94+i-2].value;
         packed="";for(uint256 i;i<wrapper.length;i++)packed=bytes.concat(packed,bytes32(wrapper[i]));
         events[1]=capturePublication(abi.encodeWithSignature("pushWrapperParams(bytes)",packed));
         address[] memory addresses=new address[](3);addresses[0]=state.tokens[1].token;addresses[1]=state.tokens[0].token;addresses[2]=state.tokens[1].token;
@@ -169,7 +209,7 @@ contract DeployedTest is Test {
         uint8[] memory categories=new uint8[](2);categories[0]=2;categories[1]=0;
         uint256[] memory catLimits=new uint256[](2);catLimits[0]=0;catLimits[1]=12345678901234567890123456;
         events[2]=capturePublication(abi.encodeWithSignature("setInventoryCaps(address[],uint256[],uint8[],uint256[])",addresses,limits,categories,catLimits));
-        vm.writeFileBinary("../fixtures/events-fork-v7.bin",abi.encode(events));
+        vm.writeFileBinary("../fixtures/events-fork-v8.bin",abi.encode(events));
     }
     function setField(uint256 slot,uint256 offset,uint256 width,uint256 value) internal {
         uint256 word=uint256(vm.load(PROXY,bytes32(slot)));if(word==1<<255)word=0;
@@ -178,26 +218,31 @@ contract DeployedTest is Test {
         vm.store(PROXY,bytes32(slot),bytes32(word==0?1<<255:word));
     }
     function test_captureBoundaries() public {
-        string memory file="../fixtures/boundaries-v7.jsonl";vm.writeFile(file,"");
-        for(uint256 world;world<9;world++) {
+        string memory file="../fixtures/boundaries-v8.jsonl";vm.writeFile(file,"");
+        for(uint256 world;world<14;world++) {
             uint256 checkpoint=vm.snapshotState();
+            this.captureBoundaryWorld(file,world);
+            assertTrue(vm.revertToStateAndDelete(checkpoint));
+        }
+    }
+    function captureBoundaryWorld(string memory file,uint256 world) external {
             if(world==1) setField(2,162,32,0); // Lambda zero retains volume cost.
             if(world==2) { // Fixed input/output wrappers on USDC/AUSD.
                 setField(9,31,12,1);setField(9,75+31,12,1);
-                setField(104,0,64,17e14);setField(104,64,64,31e14);
+                setField(87,0,64,17e14);setField(87,64,64,31e14);
             }
             if(world==3) { // Strong output refund near its positive-slope boundary.
-                setField(9,75+31,12,2|(1000<<2));setField(104,64,64,2e18);
+                setField(9,75+31,12,2|(1000<<2));setField(87,64,64,2e18);
             }
             if(world==4) { // Nonpositive wrapper value must fail explicitly.
-                setField(9,75+31,12,2|(1000<<2));setField(104,64,64,type(uint64).max);
-                setField(112,0,64,1);
+                setField(9,75+31,12,2|(1000<<2));setField(87,64,64,type(uint64).max);
+                setField(94,0,64,1);
             }
             if(world==5) { // Small receiving token cap and infinite category cap.
-                setField(120,0,24,(20<<16)|40000);setField(124,0,24,0xffffff);
+                setField(101,0,24,(20<<16)|40000);setField(104,0,24,0xffffff);
             }
             if(world==6) { // Zero receiving category cap.
-                setField(124,0,24,0);
+                setField(104,0,24,0);
             }
             if(world==7) { // Maximum accepted age.
                 uint256 maxAge=(state.words[0].value>>138)&255;uint256 posted=(state.words[0].value>>36)&type(uint32).max;
@@ -207,8 +252,26 @@ contract DeployedTest is Test {
                 uint256 maxAge=(state.words[0].value>>138)&255;uint256 posted=(state.words[0].value>>36)&type(uint32).max;
                 vm.roll(posted+maxAge+1);
             }
-            IThogAMM.PoolData memory p=IThogAMM(PROXY).getPoolData(0,32);
-            vm.serializeUint("world","world",world);string memory header=vm.serializeBytes("world","snapshot",abi.encode(p));vm.writeLine(file,header);
+            if(world==9 || world==10) {
+                // Exercise transfer-share floors with non-unit multipliers.
+                for(uint256 i=8;i<state.tokens.length;i++) {
+                    address token=state.tokens[i].token;
+                    vm.store(token,bytes32(uint256(0x10b)),bytes32(world==9?uint256(1234567890123456789):uint256(3100000000000000001)));
+                    vm.store(token,bytes32(uint256(0x10c)),bytes32(0));
+                }
+            }
+            if(world==11) { // Physical empty stock endpoints.
+                for(uint256 i=8;i<state.tokens.length;i++) stdstore.target(state.tokens[i].token).sig("sharesOf(address)").with_key(PROXY).checked_write(uint256(0));
+            }
+            if(world==12) { // Physical donation stays outside non-endpoint ledger risk.
+                for(uint256 i=8;i<state.tokens.length;i++) stdstore.target(state.tokens[i].token).sig("sharesOf(address)").with_key(PROXY).checked_write(uint256(100e18));
+            }
+            if(world==13) { // Inventory 1<<255 is valid data, not the old empty marker.
+                vm.store(PROXY,bytes32(uint256(111)),bytes32(uint256(1)<<255));
+                setField(121,4,1,0);
+            }
+            IThogAMM.PoolData memory p=IThogAMM(PROXY).getPoolData(0,28);
+            vm.serializeUint("world","world",world);string memory header=snapshotJson("world",p);vm.writeLine(file,header);
             for(uint256 i;i<state.tokens.length;i++) for(uint256 j;j<state.tokens.length;j++) {
                 if(i==j)continue;
                 for(uint256 a;a<8;a++) {
@@ -222,8 +285,6 @@ contract DeployedTest is Test {
                 }
                 recordView(file,world,"limits",i,j,0,abi.encodeWithSignature("getLimits(bytes32,address,address)",POOL,state.tokens[i].token,state.tokens[j].token));
             }
-            assertTrue(vm.revertToStateAndDelete(checkpoint));
-        }
     }
     function recordView(string memory file,uint256 world,string memory method,uint256 i,uint256 j,uint256 amount,bytes memory data) internal {
         (bool success,bytes memory result)=PROXY.staticcall(data);
