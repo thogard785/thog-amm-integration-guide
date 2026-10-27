@@ -32,6 +32,19 @@ an arbitrary new issuer token.
 Send calls to the proxy. Display name: `ThogAMM`;
 [logo](https://avatars.githubusercontent.com/u/85769984?v=4).
 
+## Upgrade availability
+
+The operator's model-2-to-model-3 rollout has a maintenance window for both
+maker liquidity and taker execution: the maker publisher and taker share one
+backend process, and incompatible model identities prevent that live backend
+from starting. The operator stops the old backend, pauses maker and global
+execution, migrates with `upgradeAndCall(migrateOnePage())`, then starts the
+matching backend. Execution resumes after the operator confirms risk widening
+of 50 (0.5 bp/block), fresh valuations, and both pause bits cleared. The migration
+preserves the old risk configuration; model 3 alone does not mean the widening
+update has landed. Reconnect with the matching SDK and obtain a complete snapshot
+after the upgrade before quoting the resumed pool.
+
 ## Listed tokens
 
 | Token | Address | Decimals |
