@@ -1,8 +1,33 @@
 # Reproduce schema-8 verification
 
-The fixtures use the deployed ThogAMM proxy, token code and linked libraries at
+The historical model-2 fixtures use the deployed ThogAMM proxy, token code and linked libraries at
 Monad block **117074438**. Expected results are contract return bytes; the SDK
 never generates its own expected values.
+
+## Pending model-3 execution capture
+
+With the matching takerbot source checkout and its pinned submodules available:
+
+```sh
+python3 tools/capture_model3.py /path/to/takerbot
+```
+
+This compiles the production Solidity pipeline and locally upgrades the forked
+proxy with `upgradeAndCall(migrateOnePage())`. It preserves inventory and policy,
+sets age widening to 50 (0.5 bp), then publishes unchanged prices through
+`pushPrices`. The six worlds combine three multipliers with fresh or one-block-old
+valuations. Seven contexts cover exact 1.5x/2x/2.5x base fee, each threshold+1,
+and a warm AuctionHandler. All 156 directions test zero/dust/$1 exact inputs
+and one-unit/$1 exact outputs: **32,760 calls**. Each call restores its starting
+state, and results come directly from the updated contract. The temporary
+capture test/config are removed afterward. No transaction is broadcast.
+
+`execution-model3.json.gz` records pending implementation provenance and source
+hashes. Copy it unchanged into each SDK's `tests/common/` directory. Model-3
+SDK tests use this corpus without modifying its identity. Historical read-only
+and event corpora are replayed with an explicit test-only identity migration;
+their old bytes and expected outputs remain intact. `execution-v8.json.gz` is
+an archive of the old policy, not an active model-3 parity fixture.
 
 ## Read-only mainnet captures
 

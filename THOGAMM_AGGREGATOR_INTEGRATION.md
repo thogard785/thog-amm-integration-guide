@@ -4,9 +4,14 @@ ThogAMM is an inventory-funded liquidity source on Monad mainnet. Use
 `makerQuoteExactInput` for a read-only quote and `makerSwapExactInput` for
 settlement with a minimum output and block deadline. For local quoting, use the
 [polling SDK](https://github.com/thogard785/thog-amm-poll-sdk) or
-[event SDK](https://github.com/thogard785/thog-amm-event-sdk), version **0.4.1**.
+[event SDK](https://github.com/thogard785/thog-amm-event-sdk), the pending **0.5.0** model-3 release.
 
-The deployed format is **schema 8 / wire 8 / model 2**. The pool lists **13 tokens**
+This guide describes the pending **schema 8 / wire 8 / model 3** upgrade.
+Released SDK 0.4.1 supports model 2 and its historical 10 bp execution policy.
+The new implementation and backend must be activated together; use SDK 0.5.0
+only after verifying model 3 in the selected snapshot. This PR does not deploy it.
+
+The pool lists **13 tokens**
 as of October 27, 2026; the registry capacity is 28. Both SDKs discover the active
 registry from `getPoolData(0, 28)`. Share accounting recognizes the contract's
 [nine compiled xStock addresses](https://github.com/thogard785/thog-amm-poll-sdk/blob/v0.4.1/model/src/shares.rs).
@@ -127,11 +132,36 @@ cannot increase. Debt and risk targets do not offset these gross inventory caps.
 Quotes also enforce pause/readiness, enabled directions, price age and arithmetic
 bounds. Independent quotes do not simulate successive fills of shared inventory.
 
-Execution applies one 10 bp output reduction when effective `tx.gasprice` is
-**greater than** twice the block base fee, or when the AuctionHandler is already
-warm. The SDK's default execution methods assume a cold AuctionHandler; the
+Execution applies a dynamic output reduction. Evaluate the following rows in
+order using the transaction's **effective** gas price and the current block's
+base fee; every gas-price comparison is strictly greater-than.
+
+| First matching condition | Raw defense | Defense after a valuation update earlier in this block |
+| --- | ---: | ---: |
+| FastLane AuctionHandler is already warm | 12 bp | 2 bp |
+| `gasPrice > 2.5 * baseFee` | 12 bp | 2 bp |
+| `gasPrice > 2 * baseFee` | 8 bp | 1 bp |
+| `gasPrice > 1.5 * baseFee` | 6 bp | 0.5 bp |
+| Otherwise | 0 bp | 0 bp |
+
+The same-block column applies exactly when the latest accepted valuation's
+`postedBlock` equals the execution block: `max(rawDefense / 4 - 1 bp, 0)`.
+A risk, wrapper, cap or inventory update alone does not qualify. The raw defense
+applies when the latest valuation is from an earlier block. Warmth and gas-price
+triggers do not stack. With zero base fee, any positive gas price selects 12 bp;
+a cold zero-price transaction selects zero. Fractional thresholds are exact,
+including odd base fees; implementations compare differences to avoid overflow.
+
+The configured age widening is **0.5 bp per elapsed block** without a valuation
+update (`widen_per_block_bps: 0.50`, encoded as 50 in 0.01 bp units). It adds to
+the pair's spread and affects both read-only and execution quotes. Execution
+defense is a separate multiplicative output reduction, not another age term.
+
+The SDK's default execution methods assume a cold AuctionHandler; the
 `*_with_context` methods accept explicit warmth. For EIP-1559, effective gas price
-is `min(maxFeePerGas, baseFee + maxPriorityFeePerGas)`.
+is `min(maxFeePerGas, baseFee + maxPriorityFeePerGas)`. `at_block(number, base_fee)`
+sets both age and the block/base-fee context used by this policy; it cannot predict
+an intervening valuation publication, trade or inventory change.
 
 For xStocks, the contract values `max(0, amountIn - inputDust)`, where each stock's dust
 is `max(2, ceil(multiplier / 1e18))`. The direct swap applies friction **after**
@@ -143,7 +173,7 @@ the quoted state/context; for ERC-7815 Buy it equals the requested target. Compa
 recipient credit with `received >= amount_out`, not equality, and do not subtract
 another xStock rounding tolerance from this guarantee. Read-only quotes omit
 execution friction. The settlement return and your `minAmountOut` apply to the
-actual execution state. These contract rules are already implemented in the SDKs.
+actual execution state. These contract rules are implemented by the matching model-3 SDKs.
 
 Supply fee fields for Monad `eth_call`: an unpriced call can expose a zero base
 fee. State reads use `gasPrice: 0x1` to retain the block's base fee; trade simulation
@@ -176,7 +206,7 @@ multiplier. Never reconstruct shares from rounded `balanceOf` values.
 Polling refreshes the full image and discovers registry changes. Event updates
 apply pool checkpoints and token movements, then read issuer multipliers for each
 published finalized block, including blocks without logs. Neither SDK performs
-network calls while calculating a quote. `at_block` only ages an existing price;
+network calls while calculating a quote. `at_block` changes age and execution context;
 it does not fetch new trades, policy or issuer state.
 
 See the [exact model specification](REFERENCE.md) for word offsets, packed fields,
