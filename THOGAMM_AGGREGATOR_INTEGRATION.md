@@ -4,17 +4,18 @@ ThogAMM is an inventory-funded liquidity source on Monad mainnet. Use
 `makerQuoteExactInput` for a read-only quote and `makerSwapExactInput` for
 settlement with a minimum output and block deadline. For local quoting, use the
 [polling SDK](https://github.com/thogard785/thog-amm-poll-sdk) or
-[event SDK](https://github.com/thogard785/thog-amm-event-sdk), the pending **0.5.0** model-3 release.
+[event SDK](https://github.com/thogard785/thog-amm-event-sdk), the **0.5.0** model-3 release.
 
-This guide describes the pending **schema 8 / wire 8 / model 3** upgrade.
+This guide describes the deployed **schema 8 / wire 8 / model 3** implementation.
 Released SDK 0.4.1 supports model 2 and its historical 10 bp execution policy.
 The new implementation and backend must be activated together; use SDK 0.5.0
-only after verifying model 3 in the selected snapshot. This PR does not deploy it.
+after verifying model 3 in the selected snapshot. The upgrade was mined at
+block **117177785**; [transaction and preservation checks](fixtures/upgrade-model3.json).
 
 The pool lists **13 tokens**
 as of October 27, 2026; the registry capacity is 28. Both SDKs discover the active
 registry from `getPoolData(0, 28)`. Share accounting recognizes the contract's
-[nine compiled xStock addresses](https://github.com/thogard785/thog-amm-poll-sdk/blob/v0.4.1/model/src/shares.rs).
+[nine compiled xStock addresses](https://github.com/thogard785/thog-amm-poll-sdk/blob/v0.5.0/model/src/shares.rs).
 Listing another of those nine needs no model change; extending the contract's
 xStock catalog requires a matching SDK release. Discovery alone cannot recognize
 an arbitrary new issuer token.
@@ -24,6 +25,7 @@ an arbitrary new issuer token.
 | Field | Value |
 | --- | --- |
 | Network / chain ID | Monad mainnet / `143` |
+| Implementation | `0xD84Cb12D870344195F23c0A5faF70e3221bDbD9E` |
 | Proxy | `0x80c74517BCC2D67fFE02D3ED886796272F647210` |
 | Pool ID | `0xce389e78282dedac7b18ba7f775b7602d2ab3ab171bbd6711eb0239be6ef4dcc` |
 | FastLane AuctionHandler | `0xD32EdF6642D917DbBE7B8BF8e5d6F5df6a9FFF58` |

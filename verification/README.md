@@ -4,7 +4,7 @@ The historical model-2 fixtures use the deployed ThogAMM proxy, token code and l
 Monad block **117074438**. Expected results are contract return bytes; the SDK
 never generates its own expected values.
 
-## Pending model-3 execution capture
+## Model-3 execution capture
 
 With the matching takerbot source checkout and its pinned submodules available:
 
@@ -22,7 +22,7 @@ and one-unit/$1 exact outputs: **32,760 calls**. Each call restores its starting
 state, and results come directly from the updated contract. The temporary
 capture test/config are removed afterward. No transaction is broadcast.
 
-`execution-model3.json.gz` records pending implementation provenance and source
+`execution-model3.json.gz` records the pre-deployment local-fork provenance and source
 hashes. Copy it unchanged into each SDK's `tests/common/` directory. Model-3
 SDK tests use this corpus without modifying its identity. Historical read-only
 and event corpora are replayed with an explicit test-only identity migration;
@@ -39,7 +39,10 @@ python3 tools/capture_events.py --rpc https://rpc.monad.xyz --start 117074438 --
 
 Historical capture requires an archive-capable endpoint. Pool and issuer reads
 use EIP-1898 block hashes. The runtime verifier checks the proxy implementation
-and SHA-256 hashes in [deployment.json](../fixtures/deployment.json).
+and SHA-256 hashes of the current model-3 deployment in
+[deployment.json](../fixtures/deployment.json). The historical
+[model-2 manifest](../fixtures/deployment-model2.json) remains unchanged;
+[upgrade-model3.json](../fixtures/upgrade-model3.json) records the upgrade and storage checks.
 
 ## Local fork captures
 

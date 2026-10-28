@@ -1,9 +1,9 @@
 # ThogAMM exact quote reference
 
-This is the pending **schema 8 / wire 8 / model 3** numeric reference. For onboarding,
+This is the deployed **schema 8 / wire 8 / model 3** numeric reference. For onboarding,
 see the [integration guide](THOGAMM_AGGREGATOR_INTEGRATION.md). The
-[shared Rust model](https://github.com/thogard785/thog-amm-poll-sdk/tree/codex/dynamic-maker-defense/model)
-is the executable reference for the pending SDK 0.5.0. Verify the pool's model
+[shared Rust model](https://github.com/thogard785/thog-amm-poll-sdk/tree/v0.5.0/model)
+is the executable reference for SDK 0.5.0. Verify the pool's model
 identity before selecting an SDK; this change does not deploy model 3.
 Floating-point approximations cannot reproduce exact integer execution.
 

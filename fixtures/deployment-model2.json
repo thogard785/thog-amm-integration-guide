@@ -1,0 +1,83 @@
+[
+  {
+    "name": "MakerEulerCatalog",
+    "address": "0xf7bd6c839ac5a79c267769689b049660597c530b",
+    "runtimeBytes": 360,
+    "sha256": "9d33a52ea701fbfc0e191f118981c006ccc7f43fe60fb9954a596a7a1bc13ec4",
+    "matchesCompiledSource": true,
+    "verifiedBlock": 117077076,
+    "verifiedBlockHash": "0xae8ae549c8a6d36e6bf3a37c9f409f9bccaf57eb8b857b0779feb978996e5403"
+  },
+  {
+    "name": "ExecutorConfiguration",
+    "address": "0x6f256541cd57d04c7a0f909b16f437b80a5b4753",
+    "runtimeBytes": 4561,
+    "sha256": "97f3e222024e001f0282325066659df86b77e889744549b87a4a94301ad773b3",
+    "matchesCompiledSource": true,
+    "verifiedBlock": 117077076,
+    "verifiedBlockHash": "0xae8ae549c8a6d36e6bf3a37c9f409f9bccaf57eb8b857b0779feb978996e5403"
+  },
+  {
+    "name": "MakerInventoryCaps",
+    "address": "0x8395443f2dda3b4f34d482e4f1e4207ec91ffe46",
+    "runtimeBytes": 12966,
+    "sha256": "29a372ea80aab2cb4ec404341a76635a0fff3cb21c74d63d8159818db6e81d7f",
+    "matchesCompiledSource": true,
+    "verifiedBlock": 117077076,
+    "verifiedBlockHash": "0xae8ae549c8a6d36e6bf3a37c9f409f9bccaf57eb8b857b0779feb978996e5403"
+  },
+  {
+    "name": "MakerLending",
+    "address": "0xa19e059628a5832e5b01f52a8aaf2f93c836a4fa",
+    "runtimeBytes": 9117,
+    "sha256": "b0bf2666f92365936c556a2d1b00e1d1ed5cdc4ea1fd6f394e99030f3dc666ae",
+    "matchesCompiledSource": true,
+    "verifiedBlock": 117077076,
+    "verifiedBlockHash": "0xae8ae549c8a6d36e6bf3a37c9f409f9bccaf57eb8b857b0779feb978996e5403"
+  },
+  {
+    "name": "MakerPoolData",
+    "address": "0x18bfbd829853c93400eef68397f53b5e3306c6f0",
+    "runtimeBytes": 18464,
+    "sha256": "e875664494e46b999ce881095208d1c533de39c7a8fbe89c07f83e87dfcc68a3",
+    "matchesCompiledSource": true,
+    "verifiedBlock": 117077076,
+    "verifiedBlockHash": "0xae8ae549c8a6d36e6bf3a37c9f409f9bccaf57eb8b857b0779feb978996e5403"
+  },
+  {
+    "name": "MakerRiskPublication",
+    "address": "0xb8779a4433a23301f7d508b9c107aab6c0a42d6e",
+    "runtimeBytes": 6441,
+    "sha256": "15f45ddefc3e747ae35bd5ca0a9813a7655e88889734f47647a85029c08c3eb6",
+    "matchesCompiledSource": true,
+    "verifiedBlock": 117077076,
+    "verifiedBlockHash": "0xae8ae549c8a6d36e6bf3a37c9f409f9bccaf57eb8b857b0779feb978996e5403"
+  },
+  {
+    "name": "MakerRoutingMath",
+    "address": "0x400285e5564b650575eaeee96239248a01316fda",
+    "runtimeBytes": 5885,
+    "sha256": "3a68dacd2693880173fe8ebccc1a4f18a74369aa8a1792808de9433100242315",
+    "matchesCompiledSource": true,
+    "verifiedBlock": 117077076,
+    "verifiedBlockHash": "0xae8ae549c8a6d36e6bf3a37c9f409f9bccaf57eb8b857b0779feb978996e5403"
+  },
+  {
+    "name": "OnePageMigration",
+    "address": "0x6f8edbf103418017c9f4bc643ebe9cb00acb882c",
+    "runtimeBytes": 5376,
+    "sha256": "447dba9f5d351f95217a511ba0de4b5222d3d26e983e37db7451e19b66034f3b",
+    "matchesCompiledSource": true,
+    "verifiedBlock": 117077076,
+    "verifiedBlockHash": "0xae8ae549c8a6d36e6bf3a37c9f409f9bccaf57eb8b857b0779feb978996e5403"
+  },
+  {
+    "name": "TakerExecutor",
+    "address": "0x96ab5405c223cade23f95944784a6dba51c9bca4",
+    "runtimeBytes": 130655,
+    "sha256": "8c9644227a424dd0c47209b2a84f5950aa5e6415bc660d4ce60517ad3d11fc6b",
+    "matchesCompiledSource": true,
+    "verifiedBlock": 117077076,
+    "verifiedBlockHash": "0xae8ae549c8a6d36e6bf3a37c9f409f9bccaf57eb8b857b0779feb978996e5403"
+  }
+]

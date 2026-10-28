@@ -5,26 +5,26 @@
     "runtimeBytes": 360,
     "sha256": "9d33a52ea701fbfc0e191f118981c006ccc7f43fe60fb9954a596a7a1bc13ec4",
     "matchesCompiledSource": true,
-    "verifiedBlock": 117077076,
-    "verifiedBlockHash": "0xae8ae549c8a6d36e6bf3a37c9f409f9bccaf57eb8b857b0779feb978996e5403"
+    "verifiedBlock": 117177545,
+    "verifiedBlockHash": "0xc7749213952ec42dfd2f8e3320f67e6a9ac1ed15bf6cd9985dbe054f705200fd"
   },
   {
     "name": "ExecutorConfiguration",
-    "address": "0x6f256541cd57d04c7a0f909b16f437b80a5b4753",
+    "address": "0x3f8a707c73ef45d652c42c0323c9e18adbdb2af4",
     "runtimeBytes": 4561,
-    "sha256": "97f3e222024e001f0282325066659df86b77e889744549b87a4a94301ad773b3",
+    "sha256": "de79873a9ea1a32620fa17b748b4bec4a3b7d8e13e4201173dd856d29d011194",
     "matchesCompiledSource": true,
-    "verifiedBlock": 117077076,
-    "verifiedBlockHash": "0xae8ae549c8a6d36e6bf3a37c9f409f9bccaf57eb8b857b0779feb978996e5403"
+    "verifiedBlock": 117177545,
+    "verifiedBlockHash": "0xc7749213952ec42dfd2f8e3320f67e6a9ac1ed15bf6cd9985dbe054f705200fd"
   },
   {
     "name": "MakerInventoryCaps",
-    "address": "0x8395443f2dda3b4f34d482e4f1e4207ec91ffe46",
-    "runtimeBytes": 12966,
-    "sha256": "29a372ea80aab2cb4ec404341a76635a0fff3cb21c74d63d8159818db6e81d7f",
+    "address": "0x5891adf4cd905fa0dfa1aa24bcb34acc5b49693f",
+    "runtimeBytes": 12979,
+    "sha256": "f1e56e89abdd4a9f480c3395ef111cd0a58d582b801cc4858458e1cf89ced982",
     "matchesCompiledSource": true,
-    "verifiedBlock": 117077076,
-    "verifiedBlockHash": "0xae8ae549c8a6d36e6bf3a37c9f409f9bccaf57eb8b857b0779feb978996e5403"
+    "verifiedBlock": 117177545,
+    "verifiedBlockHash": "0xc7749213952ec42dfd2f8e3320f67e6a9ac1ed15bf6cd9985dbe054f705200fd"
   },
   {
     "name": "MakerLending",
@@ -32,8 +32,8 @@
     "runtimeBytes": 9117,
     "sha256": "b0bf2666f92365936c556a2d1b00e1d1ed5cdc4ea1fd6f394e99030f3dc666ae",
     "matchesCompiledSource": true,
-    "verifiedBlock": 117077076,
-    "verifiedBlockHash": "0xae8ae549c8a6d36e6bf3a37c9f409f9bccaf57eb8b857b0779feb978996e5403"
+    "verifiedBlock": 117177545,
+    "verifiedBlockHash": "0xc7749213952ec42dfd2f8e3320f67e6a9ac1ed15bf6cd9985dbe054f705200fd"
   },
   {
     "name": "MakerPoolData",
@@ -41,8 +41,8 @@
     "runtimeBytes": 18464,
     "sha256": "e875664494e46b999ce881095208d1c533de39c7a8fbe89c07f83e87dfcc68a3",
     "matchesCompiledSource": true,
-    "verifiedBlock": 117077076,
-    "verifiedBlockHash": "0xae8ae549c8a6d36e6bf3a37c9f409f9bccaf57eb8b857b0779feb978996e5403"
+    "verifiedBlock": 117177545,
+    "verifiedBlockHash": "0xc7749213952ec42dfd2f8e3320f67e6a9ac1ed15bf6cd9985dbe054f705200fd"
   },
   {
     "name": "MakerRiskPublication",
@@ -50,34 +50,34 @@
     "runtimeBytes": 6441,
     "sha256": "15f45ddefc3e747ae35bd5ca0a9813a7655e88889734f47647a85029c08c3eb6",
     "matchesCompiledSource": true,
-    "verifiedBlock": 117077076,
-    "verifiedBlockHash": "0xae8ae549c8a6d36e6bf3a37c9f409f9bccaf57eb8b857b0779feb978996e5403"
+    "verifiedBlock": 117177545,
+    "verifiedBlockHash": "0xc7749213952ec42dfd2f8e3320f67e6a9ac1ed15bf6cd9985dbe054f705200fd"
   },
   {
     "name": "MakerRoutingMath",
-    "address": "0x400285e5564b650575eaeee96239248a01316fda",
-    "runtimeBytes": 5885,
-    "sha256": "3a68dacd2693880173fe8ebccc1a4f18a74369aa8a1792808de9433100242315",
+    "address": "0x714fe33714be1070f0836f6a8e90a47ccd54d4b1",
+    "runtimeBytes": 5877,
+    "sha256": "d570bbcf72acbc3b1761ec36d2a9270d28ec9bcb7e7c493f7506f2fe1235ff7b",
     "matchesCompiledSource": true,
-    "verifiedBlock": 117077076,
-    "verifiedBlockHash": "0xae8ae549c8a6d36e6bf3a37c9f409f9bccaf57eb8b857b0779feb978996e5403"
+    "verifiedBlock": 117177545,
+    "verifiedBlockHash": "0xc7749213952ec42dfd2f8e3320f67e6a9ac1ed15bf6cd9985dbe054f705200fd"
   },
   {
     "name": "OnePageMigration",
-    "address": "0x6f8edbf103418017c9f4bc643ebe9cb00acb882c",
-    "runtimeBytes": 5376,
-    "sha256": "447dba9f5d351f95217a511ba0de4b5222d3d26e983e37db7451e19b66034f3b",
+    "address": "0x1338c64dd4ee812c3f84eb865b6a04c60aad3d86",
+    "runtimeBytes": 5752,
+    "sha256": "aa3ecbc2cbc67f3bcce614a50c46fbbf324f7e66a0669a97a32e8f9cb737e531",
     "matchesCompiledSource": true,
-    "verifiedBlock": 117077076,
-    "verifiedBlockHash": "0xae8ae549c8a6d36e6bf3a37c9f409f9bccaf57eb8b857b0779feb978996e5403"
+    "verifiedBlock": 117177545,
+    "verifiedBlockHash": "0xc7749213952ec42dfd2f8e3320f67e6a9ac1ed15bf6cd9985dbe054f705200fd"
   },
   {
     "name": "TakerExecutor",
-    "address": "0x96ab5405c223cade23f95944784a6dba51c9bca4",
-    "runtimeBytes": 130655,
-    "sha256": "8c9644227a424dd0c47209b2a84f5950aa5e6415bc660d4ce60517ad3d11fc6b",
+    "address": "0xd84cb12d870344195f23c0a5faf70e3221bdbd9e",
+    "runtimeBytes": 128023,
+    "sha256": "92d7605501570cc4871368ad54f764215d0016c6eb159ad3fd7aa0598a657449",
     "matchesCompiledSource": true,
-    "verifiedBlock": 117077076,
-    "verifiedBlockHash": "0xae8ae549c8a6d36e6bf3a37c9f409f9bccaf57eb8b857b0779feb978996e5403"
+    "verifiedBlock": 117177545,
+    "verifiedBlockHash": "0xc7749213952ec42dfd2f8e3320f67e6a9ac1ed15bf6cd9985dbe054f705200fd"
   }
 ]

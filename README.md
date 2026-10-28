@@ -8,16 +8,17 @@ execution output is a guarantee, so compare `received >= amount_out`.
 
 | Resource | Use |
 | --- | --- |
-| [Polling SDK 0.5.0 (pending)](https://github.com/thogard785/thog-amm-poll-sdk) | Refresh complete state, then quote locally |
-| [Event SDK 0.5.0 (pending)](https://github.com/thogard785/thog-amm-event-sdk) | Replay pool/share events and refresh issuer multipliers |
+| [Polling SDK 0.5.0](https://github.com/thogard785/thog-amm-poll-sdk) | Refresh complete state, then quote locally |
+| [Event SDK 0.5.0](https://github.com/thogard785/thog-amm-event-sdk) | Replay pool/share events and refresh issuer multipliers |
 | [ABI](abi/ThogAMM.json) · [Numeric reference](REFERENCE.md) | Implement another language or transport |
 
 Proxy: `0x80c74517BCC2D67fFE02D3ED886796272F647210`. Chain ID: **143**.
-Pending state format: **schema 8 / wire 8 / model 3**, capacity 28 tokens.
+Current state format: **schema 8 / wire 8 / model 3**, capacity 28 tokens.
 Read `getPoolData(0, 28)` and the listed xStocks’ share/multiplier state at one
-block hash. SDK **0.5.0** targets the pending contract upgrade; SDK 0.4.1 remains for model 2.
+block hash. SDK **0.5.0** supports the deployed contract; SDK 0.4.1 remains for historical model 2.
 Verify the model identity at the selected block before choosing an SDK.
-This PR does not deploy the contract or publish a v0.5.0 tag.
+Model 3 was activated at block **117177785**. See the [upgrade record](fixtures/upgrade-model3.json)
+and [implementation/library runtime hashes](fixtures/deployment.json).
 
 ## Verification
 
@@ -36,7 +37,8 @@ implementation, publishes valuations through the actual writer, and tests both
 that block and the following block. It spans all 156 directions, three issuer
 multiplier states, every strict gas threshold and threshold+1, and explicit
 AuctionHandler warmth. Captures record source hashes and raw contract results;
-this is fork evidence for pending code, not a claim of a mainnet deployment.
+these remain fork execution results. The deployment record separately verifies
+the matching production implementation and library runtimes.
 
 Historical read-only and event fixtures retain their original model-2 bytes.
 Tests explicitly migrate only their model identity to exercise unchanged
@@ -47,8 +49,9 @@ is preserved as historical evidence and is not used to validate model-3 defense.
 snapshots and 220 logs, including all words, metadata, physical shares, balances,
 issuer multipliers and native MON. [Publication fixtures](fixtures/events-fork-v8.bin.gz)
 cover readiness, anchor changes, spare bits and caps.
-[Historical runtime evidence](fixtures/deployment.json) records the model-2
-implementation and eight linked libraries. It does not describe the pending upgrade.
+[Current runtime evidence](fixtures/deployment.json) records the model-3
+implementation and eight linked libraries. [Model-2 runtime evidence](fixtures/deployment-model2.json)
+is preserved separately.
 
 See [verification instructions](verification/README.md) to reproduce the captures.
 All fork tests are local. Error parity means matching acceptance/rejection;

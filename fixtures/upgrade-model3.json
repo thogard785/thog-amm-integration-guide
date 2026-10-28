@@ -1,0 +1,18 @@
+{
+  "upgrade_transaction": "0x962e87a568d98fba303d7077f6b51242599c07446799b87f117cbd14065214d2",
+  "upgrade_block": 117177785,
+  "implementation": "0xd84cb12d870344195f23c0a5faf70e3221bdbd9e",
+  "changed_page_slots": [
+    8
+  ],
+  "only_model_byte_changed": true,
+  "balances_tokens_native_preserved": true,
+  "lending_checks": {
+    "euler_position": "exact same-block old/new implementation match",
+    "neverland_account": "exact same-block old/new implementation match",
+    "neverland_positions": "exact same-block old/new implementation match"
+  },
+  "lending_check_block": 117177787,
+  "both_paused": true,
+  "identity": "0x30808"
+}
