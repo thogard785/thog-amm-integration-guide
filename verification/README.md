@@ -42,7 +42,11 @@ use EIP-1898 block hashes. The runtime verifier checks the proxy implementation
 and SHA-256 hashes of the current model-3 deployment in
 [deployment.json](../fixtures/deployment.json). The historical
 [model-2 manifest](../fixtures/deployment-model2.json) remains unchanged;
-[upgrade-model3.json](../fixtures/upgrade-model3.json) records the upgrade and storage checks.
+[upgrade-model3.json](../fixtures/upgrade-model3.json) records the original model upgrade
+and storage checks, with its original runtimes preserved in
+[deployment-model3-initial.json](../fixtures/deployment-model3-initial.json).
+The current manifest was refreshed after a taker-only implementation upgrade;
+the maker interface, model identity, and reconstruction semantics are unchanged.
 
 ## Local fork captures
 

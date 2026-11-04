@@ -18,7 +18,11 @@ Read `getPoolData(0, 28)` and the listed xStocks’ share/multiplier state at on
 block hash. SDK **0.5.0** supports the deployed contract; SDK 0.4.1 remains for historical model 2.
 Verify the model identity at the selected block before choosing an SDK.
 Model 3 was activated at block **117177785**. See the [upgrade record](fixtures/upgrade-model3.json)
-and [implementation/library runtime hashes](fixtures/deployment.json).
+and [initial model-3 runtime hashes](fixtures/deployment-model3-initial.json).
+The current implementation is `0xdd3f40a394f6261e842fde88db18a49106806c10`;
+all nine [implementation/library runtimes](fixtures/deployment.json) were verified
+against compiled source at block **119204325**. The maker ABI and model-3
+reconstruction rules remain unchanged, so SDK 0.5.0 still applies.
 
 ## Verification
 
