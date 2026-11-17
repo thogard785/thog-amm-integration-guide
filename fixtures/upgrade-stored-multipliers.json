@@ -1,0 +1,202 @@
+{
+  "chainId": 143,
+  "sourceCommit": "09ca9b374a4dda722a8b6cad07ec5643c6dee3e4",
+  "previousImplementation": "0x08efb0f852f4159ee9848407cd3ff0e7d6766742",
+  "verifiedBlock": 122889027,
+  "blockHash": "0xcca8f472ba99771635e9745d9cf46c4ec2f31d5b6be00a53f9ba3b208c76e73d",
+  "proxy": "0x80c74517BCC2D67fFE02D3ED886796272F647210",
+  "implementation": "0xb108a1daf3c9ba52778b97a15ebdfa3f6f59b506",
+  "paused": true,
+  "tokenCount": 17,
+  "categoryCount": 14,
+  "registryOrderVerified": true,
+  "retainedNonStockCapsVerified": true,
+  "nineStockCapsVerified": true,
+  "perplConfigurationAndPositionsPreserved": true,
+  "multipliers": [
+    {
+      "symbol": "SPYx",
+      "token": "0x90a2a4c76b5d8c0bc892a69ea28aa775a8f2dd48",
+      "storedMultiplier": "1007474126658766000",
+      "issuerMultiplier": "1007474126658766000",
+      "tokenCapPacked": 3270402,
+      "categoryCapPacked": 3909992
+    },
+    {
+      "symbol": "QQQx",
+      "token": "0xa753a7395cae905cd615da0b82a53e0560f250af",
+      "storedMultiplier": "1003456075896837600",
+      "issuerMultiplier": "1003456075896837600",
+      "tokenCapPacked": 3309785,
+      "categoryCapPacked": 3909992
+    },
+    {
+      "symbol": "EWYx",
+      "token": "0x299c95eb52bfd5bc98d924bce17197b64864589b",
+      "storedMultiplier": "1000000000000000000",
+      "issuerMultiplier": "1000000000000000000",
+      "tokenCapPacked": 3447819,
+      "categoryCapPacked": 3909992
+    },
+    {
+      "symbol": "NVDAx",
+      "token": "0xc845b2894dbddd03858fd2d643b4ef725fe0849d",
+      "storedMultiplier": "1001701196801074000",
+      "issuerMultiplier": "1001701196801074000",
+      "tokenCapPacked": 3442272,
+      "categoryCapPacked": 3909992
+    },
+    {
+      "symbol": "TSLAx",
+      "token": "0x8ad3c73f833d3f9a523ab01476625f269aeb7cf0",
+      "storedMultiplier": "1000000000000000000",
+      "issuerMultiplier": "1000000000000000000",
+      "tokenCapPacked": 3334564,
+      "categoryCapPacked": 3909992
+    },
+    {
+      "symbol": "SMHx",
+      "token": "0x8d512a03600981b8e86556fd5c0fbdd726fe1821",
+      "storedMultiplier": "1000000000000000000",
+      "issuerMultiplier": "1000000000000000000",
+      "tokenCapPacked": 3323053,
+      "categoryCapPacked": 3909992
+    },
+    {
+      "symbol": "SPCXx",
+      "token": "0x68fa48b1c2fe52b3d776e1953e0e782b5044ce28",
+      "storedMultiplier": "1000000000000000000",
+      "issuerMultiplier": "1000000000000000000",
+      "tokenCapPacked": 3447778,
+      "categoryCapPacked": 3909992
+    },
+    {
+      "symbol": "MUx",
+      "token": "0xf6a873bae4ba1b304e45df52a4b7d176e1c6a8c4",
+      "storedMultiplier": "1000511799296054200",
+      "issuerMultiplier": "1000511799296054200",
+      "tokenCapPacked": 3270631,
+      "categoryCapPacked": 3909992
+    },
+    {
+      "symbol": "SKHYx",
+      "token": "0x58100046a4afcd4ee4fadbd4244f3f895a341c56",
+      "storedMultiplier": "1000087647896581900",
+      "issuerMultiplier": "1000087647896581900",
+      "tokenCapPacked": 3451939,
+      "categoryCapPacked": 3909992
+    }
+  ],
+  "transactions": [
+    {
+      "stage": "pause",
+      "transactionHash": "0xbb6bbba1421b12e0803cf794db68bee7bfb68c00ed30040c8e02d608d33898da",
+      "blockNumber": 122887305,
+      "status": 1,
+      "gasUsed": 87204,
+      "effectiveGasPriceWei": 109000000000
+    },
+    {
+      "stage": "libraries",
+      "transactionHash": "0x07f2807effe3b5b7d22ce1d71986d680ca3922f30f3ba1d1b2d1fefdca01a577",
+      "blockNumber": 122887521,
+      "status": 1,
+      "gasUsed": 4179545,
+      "effectiveGasPriceWei": 102000000001
+    },
+    {
+      "stage": "libraries",
+      "transactionHash": "0x18abcbd7638c071ee4fd7e08d3c0bed362cd4eebbe3bf56645c42f7d0bb25486",
+      "blockNumber": 122887525,
+      "status": 1,
+      "gasUsed": 3662025,
+      "effectiveGasPriceWei": 102000000001
+    },
+    {
+      "stage": "libraries",
+      "transactionHash": "0x9cba75d40f9d67b5c1725b6aa51dee2e912f29cd88bf74b9e619efd9ca2c746b",
+      "blockNumber": 122887529,
+      "status": 1,
+      "gasUsed": 8384727,
+      "effectiveGasPriceWei": 102000000001
+    },
+    {
+      "stage": "libraries",
+      "transactionHash": "0x8077665adbaeb37c44581ad6b1ec5d9f8e3e6a74e9722721231e7af7ec7185cd",
+      "blockNumber": 122887533,
+      "status": 1,
+      "gasUsed": 5583969,
+      "effectiveGasPriceWei": 102000000001
+    },
+    {
+      "stage": "libraries",
+      "transactionHash": "0xf1396145ab42e41cc8482d6fdacb4008ea925a5e1d7d700aa2e5776b79df06dc",
+      "blockNumber": 122887536,
+      "status": 1,
+      "gasUsed": 2593132,
+      "effectiveGasPriceWei": 102000000001
+    },
+    {
+      "stage": "implementation",
+      "transactionHash": "0x786a5507bfe26e5cbb36a856862fe40f88b527e86ccdb28ff765ac04cb027a1d",
+      "blockNumber": 122888037,
+      "status": 1,
+      "gasUsed": 28523726,
+      "effectiveGasPriceWei": 106500000000
+    },
+    {
+      "stage": "upgrade-and-sync",
+      "transactionHash": "0x22804c988ae0c6c3743859f6f3524c1df335a0fa45fb8c09f984c3ff1c7eb307",
+      "blockNumber": 122888348,
+      "status": 1,
+      "gasUsed": 475867,
+      "effectiveGasPriceWei": 105907283947
+    },
+    {
+      "stage": "listing",
+      "transactionHash": "0x49378c91d70fa47bd6c0b157c7cc8407eedba01cdc780bf59b6a2a12f68a19d0",
+      "blockNumber": 122888657,
+      "status": 1,
+      "gasUsed": 322592,
+      "effectiveGasPriceWei": 103500000001
+    },
+    {
+      "stage": "listing",
+      "transactionHash": "0xa0b700278f00355463f580c87c8bdcf0535e75428cf2c7ddeda852ceca96d350",
+      "blockNumber": 122888662,
+      "status": 1,
+      "gasUsed": 353766,
+      "effectiveGasPriceWei": 103500000001
+    },
+    {
+      "stage": "listing",
+      "transactionHash": "0xac9945183529942cb25fde52c5b74a5790509bf8e19efa6667a961e51cf7c9b8",
+      "blockNumber": 122888665,
+      "status": 1,
+      "gasUsed": 336783,
+      "effectiveGasPriceWei": 103500000001
+    },
+    {
+      "stage": "listing",
+      "transactionHash": "0xef4720bd88b7162b08000121096d532a63ec72cc7e50d82a2bfe382b394ebd92",
+      "blockNumber": 122888669,
+      "status": 1,
+      "gasUsed": 365472,
+      "effectiveGasPriceWei": 103500000001
+    },
+    {
+      "stage": "caps",
+      "transactionHash": "0xbecd7a1ca6bca99844c4a04e1b48355c94504a3b5d61e3a4efaf2c4a6f0b546e",
+      "blockNumber": 122888817,
+      "status": 1,
+      "gasUsed": 181321,
+      "effectiveGasPriceWei": 102000000000
+    }
+  ],
+  "sdkReleases": {
+    "poll": "v0.6.0",
+    "pollCommit": "95dee1c",
+    "event": "v0.6.0",
+    "eventCommit": "2687d9d"
+  }
+}

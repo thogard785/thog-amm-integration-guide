@@ -4,31 +4,32 @@ ThogAMM is an inventory-funded liquidity source on Monad mainnet. Use
 `makerQuoteExactInput` for a read-only quote and `makerSwapExactInput` for
 settlement with a minimum output and block deadline. For local quoting, use the
 [polling SDK](https://github.com/thogard785/thog-amm-poll-sdk) or
-[event SDK](https://github.com/thogard785/thog-amm-event-sdk), the **0.5.0** model-3 release.
+[event SDK](https://github.com/thogard785/thog-amm-event-sdk), the **0.6.0** stored-multiplier release.
 
-This guide describes the deployed **schema 8 / wire 8 / model 3** implementation.
-Released SDK 0.4.1 supports model 2 and its historical 10 bp execution policy.
-Use SDK 0.5.0 after verifying model 3 in the selected snapshot. Model 3 was
-activated at block **117177785**; [transaction and preservation checks](fixtures/upgrade-model3.json).
-The current implementation was verified at block **119204325** on November 4, 2026 UTC.
-Its maker ABI, state format, quote math, share rounding, and execution-defense
-policy are unchanged; the intervening contract changes affect taker execution.
-See the [current implementation and library hashes](fixtures/deployment.json).
+This guide describes **schema 8 / wire 8 / model 3** with executor-stored xStock
+multipliers. The implementation is `0xb108a1daf3c9ba52778b97a15ebdfa3f6f59b506`, verified against compiled source
+with all nine linked libraries; [runtime evidence](fixtures/deployment.json).
+The upgrade and expanded registry were verified at block **122889027** on
+November 17, 2026 UTC; [transactions and state checks](fixtures/upgrade-stored-multipliers.json).
 
-The pool lists **13 tokens**
-as of October 27, 2026; the registry capacity is 28. Both SDKs discover the active
-registry from `getPoolData(0, 28)`. Share accounting recognizes the contract's
-[nine compiled xStock addresses](https://github.com/thogard785/thog-amm-poll-sdk/blob/v0.5.0/model/src/shares.rs).
-Listing another of those nine needs no model change; extending the contract's
-xStock catalog requires a matching SDK release. Discovery alone cannot recognize
-an arbitrary new issuer token.
+Use **SDK 0.6.0** for this implementation. SDK 0.5.0 reads issuer multipliers
+and can disagree between an issuer change and the executor's synchronization.
+Schema/wire/model identity remains 8/8/3, so identity alone cannot distinguish
+these implementations. Model 3 was originally activated at block **117177785**;
+[historical activation](fixtures/upgrade-model3.json).
+
+The pool lists **17 tokens**, including all nine unwrapped xStocks, with capacity
+for 28. Both SDKs discover the active registry from `getPoolData(0, 28)`.
+Share accounting recognizes the contract's
+[nine compiled xStock addresses](https://github.com/thogard785/thog-amm-poll-sdk/blob/v0.6.0/model/src/shares.rs).
+Extending the compiled xStock catalog requires a matching SDK release.
 
 ## Deployment
 
 | Field | Value |
 | --- | --- |
 | Network / chain ID | Monad mainnet / `143` |
-| Implementation | `0xdd3f40a394f6261e842fde88db18a49106806c10` |
+| Implementation | `0xb108a1daf3c9ba52778b97a15ebdfa3f6f59b506` |
 | Proxy | `0x80c74517BCC2D67fFE02D3ED886796272F647210` |
 | Pool ID | `0xce389e78282dedac7b18ba7f775b7602d2ab3ab171bbd6711eb0239be6ef4dcc` |
 | FastLane AuctionHandler | `0xD32EdF6642D917DbBE7B8BF8e5d6F5df6a9FFF58` |
@@ -39,16 +40,19 @@ Send calls to the proxy. Display name: `ThogAMM`;
 
 ## Upgrade availability
 
-The operator's model-2-to-model-3 rollout has a maintenance window for both
-maker liquidity and taker execution: the maker publisher and taker share one
-backend process, and incompatible model identities prevent that live backend
-from starting. The operator stops the old backend, pauses maker and global
-execution, migrates with `upgradeAndCall(migrateOnePage())`, then starts the
-matching backend. Execution resumes after the operator confirms risk widening
-of 50 (0.5 bp/block), fresh valuations, and both pause bits cleared. The migration
-preserves the old risk configuration; model 3 alone does not mean the widening
-update has landed. Reconnect with the matching SDK and obtain a complete snapshot
-after the upgrade before quoting the resumed pool.
+The stored-multiplier rollout pauses maker liquidity and taker execution while
+the shared backend is stopped. The operator upgrades with `upgradeAndCall`,
+initializing the existing xStock multipliers atomically, then appends the four
+new listings and publishes caps. The 126-word pool page is preserved by the
+implementation upgrade; no page migration runs. New listings change registry
+generation and require a complete snapshot.
+
+The November 17 rollout was verified with the executor **paused** and the new
+backend prepared but stopped. This is a recorded maintenance state; query
+`paused()` and the current page for live availability. Before unpausing, the
+operator starts the matching backend and confirms all valuation feeds, complete
+risk/wrapper policy, fresh prices and stored multiplier synchronization.
+Reconnect with SDK 0.6.0 and obtain a fresh snapshot after the upgrade.
 
 ## Listed tokens
 
@@ -67,14 +71,27 @@ after the upgrade before quoting the resumed pool.
 | EWYx | `0x299c95eb52bfd5bc98d924bce17197b64864589b` | 18 |
 | NVDAx | `0xc845b2894dbddd03858fd2d643b4ef725fe0849d` | 18 |
 | TSLAx | `0x8ad3c73f833d3f9a523ab01476625f269aeb7cf0` | 18 |
+| SMHx | `0x8d512a03600981b8e86556fd5c0fbdd726fe1821` | 18 |
+| SPCXx | `0x68fa48b1c2fe52b3d776e1953e0e782b5044ce28` | 18 |
+| MUx | `0xf6a873bae4ba1b304e45df52a4b7d176e1c6a8c4` | 18 |
+| SKHYx | `0x58100046a4afcd4ee4fadbd4244f3f895a341c56` | 18 |
 
 `getTokens(poolId)` is authoritative. Indices, sides, balances and available sizes
 can change; read metadata instead of hard-coding indices. Use WMON for native MON
 routes. Fee-on-transfer tokens are unsupported.
 
-The five xStocks are **unwrapped tokens**, each with 18 decimals. The separate
+The nine xStocks are **unwrapped tokens**, each with 18 decimals. The separate
 wxStock wrapper addresses are not listed here. xStock balances rebase through an
 issuer multiplier; a multiplier activation can occur without a transfer or log.
+The contract does not call the issuer when it quotes or settles. It uses its own
+stored copy of each multiplier, `storedMultiplier(token)`, which a
+`syncMultipliers` call brings up to the issuer's whenever that changes. **Model
+quotes from the stored copy, for every listed stock and for every pair.** A
+held stock's value enters the risk term of all pairs, so between an issuer's
+change and the sync a model that reads the issuer instead disagrees with the
+contract on every pair, slightly, not only on that stock. In that interval the
+publisher turns the stock's own sides off, and the contract refuses a swap of
+that stock (`xstock: multiplier stale`) until the copy is synced.
 
 ## Smallest integration
 
@@ -182,7 +199,7 @@ sets both age and the block/base-fee context used by this policy; it cannot pred
 an intervening valuation publication, trade or inventory change.
 
 For xStocks, the contract values `max(0, amountIn - inputDust)`, where each stock's dust
-is `max(2, ceil(multiplier / 1e18))`. The direct swap applies friction **after**
+is `max(2, ceil(multiplier / 1e18))` at its stored multiplier. The direct swap applies friction **after**
 subtracting output dust; ERC-7815 applies it **before** subtracting output dust.
 Settlement sends the quoted stock output plus dust, then floors that transfer to
 shares. The returned output is the guaranteed amount; actual receipt can exceed
@@ -212,20 +229,24 @@ The SDKs share one integer quote model. A complete snapshot consists of:
 2. All 126 logical words at slots 2–127, token/category metadata, physical
    `portfolioBalances` and native MON. `getPoolData` already decodes zero markers;
    an inventory word equal to `1 << 255` is valid data.
-3. `sharesOf(proxy)` and `getCurrentMultiplier()` for every registered unwrapped
-   xStock, pinned to that same hash. The multiplier call returns three words;
-   use the first. Check `balanceOf = floor(shares * multiplier / 1e18)`.
+3. `sharesOf(proxy)` on each registered xStock and `storedMultiplier(token)` on
+   the executor, pinned to that same hash. The latter returns one uint256 word.
+   Check the page's physical balance equals `floor(shares * storedMultiplier / 1e18)`.
+   The issuer's `balanceOf` can differ during an unsynchronized multiplier change.
 
 Stored inventory is `uint128` units at slots 107–120: shares for xStocks, raw
 amounts for ordinary tokens. A quote uses physical holdings for its two endpoints
-and stored ledger holdings for every other token. Revalue shares with the current
-multiplier. Never reconstruct shares from rounded `balanceOf` values.
+and stored ledger holdings for every other token. Revalue all xStock shares with
+the executor's stored multiplier. Never reconstruct shares from rounded nominal
+balances. Multipliers live in sixteen appended storage slots; they are not part
+of the 126-word page and must be read with the dedicated getter.
 
 Polling refreshes the full image and discovers registry changes. Event updates
-apply pool checkpoints and token movements, then read issuer multipliers for each
-published finalized block, including blocks without logs. Neither SDK performs
-network calls while calculating a quote. `at_block` changes age and execution context;
-it does not fetch new trades, policy or issuer state.
+apply pool checkpoints, token movements and `MakerMultiplierUpdated` in complete
+finalized blocks. After the initial snapshot, the event SDK performs no RPC reads.
+A log-free issuer activation does not change stored multipliers. Neither SDK
+performs network calls while calculating a quote. `at_block` changes age and
+execution context; it does not fetch trades, policy or multiplier updates.
 
 See the [exact model specification](REFERENCE.md) for word offsets, packed fields,
 curve equations, cap encoding and publication payloads.
@@ -238,15 +259,21 @@ curve equations, cap encoding and publication payloads.
 | `MakerInventoryUpdated(uint8,address,uint128)` | Absolute accounted units; validate index/address and update the inventory zero bitmap |
 | Ordinary ERC-20 `Transfer` | Physical balances of ordinary tokens |
 | xStock `TransferShares` | Physical shares; ignore its accompanying nominal `Transfer` |
-| Hash-pinned issuer multiplier | Revalue physical and accounted shares, even without logs |
-| `MakerLendingExposureUpdated` | Absolute signed exposure offset and lending sequence |
+| `MakerMultiplierUpdated(address,uint256)` | Update the stored multiplier and revalue physical/accounted shares at finalization |
+| `MakerLendingExposureUpdated` | Absolute signed exposure offset and lending sequence. The venue topic is informational: 0 Neverland, 1 Euler, 2 a Perpl perpetual fill |
 | `MakerWmonBalanceCheckpoint`, `NativeBalanceCheckpoint` | Absolute physical WMON / native balance |
 | `Paused` | Maker pause bit |
 | `MakerTokenAdded`, `MakerTokenRetired` | Reload the complete registry and rebuild prepared pairs |
 | `Upgraded` | Verify implementation compatibility before reconnecting |
 
+`PerplConfigured`, `PerplTradeExecuted`, `PerplSynced` and
+`PerplCollateralMoved` need no handling: a perpetual fill or position sync
+reaches the model only as the `MakerLendingExposureUpdated` it emits, and risk
+publications are the same with or without the venue. Page words 122–127 hold that venue's state and are
+read by no quote.
+
 Process logs once in canonical transaction/log order. Swap, fee and wrapper-cost
 accounting events are not additional balance deltas. Missing events, malformed
-publications or failed issuer reads must not publish a partial snapshot. Reconnect
+publications must not publish a partial snapshot. Reconnect
 explicitly after such errors. Forced native transfers need account-state data or a
 fresh snapshot; ordinary logs do not cover them.

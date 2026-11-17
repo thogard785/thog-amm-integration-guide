@@ -2,9 +2,9 @@
 
 This is the deployed **schema 8 / wire 8 / model 3** numeric reference. For onboarding,
 see the [integration guide](THOGAMM_AGGREGATOR_INTEGRATION.md). The
-[shared Rust model](https://github.com/thogard785/thog-amm-poll-sdk/tree/v0.5.0/model)
-is the executable reference for SDK 0.5.0. Verify the pool's model
-identity before selecting an SDK; this change does not deploy model 3.
+[shared Rust model](https://github.com/thogard785/thog-amm-poll-sdk/tree/v0.6.0/model)
+is the executable reference for SDK 0.6.0. Verify the implementation and model
+identity before selecting an SDK; stored multipliers retain model identity 3.
 Floating-point approximations cannot reproduce exact integer execution.
 
 The public quote, swap and ERC-7815 selectors and return shapes are unchanged.
@@ -75,8 +75,8 @@ Do not apply physical-marker decoding to its returned values.
    Recompute the corresponding slot-121 zero bit if maintaining exact word parity.
    For ordinary tokens, `Transfer` changes physical balances only. For xStocks,
    apply `TransferShares` to physical shares and ignore the accompanying nominal
-   `Transfer`. Refresh the issuer multiplier at each published block even without
-   logs, since scheduled activations need no transaction. Never apply a swap
+   `Transfer`. Apply `MakerMultiplierUpdated` to the executor-stored multiplier;
+   an issuer activation alone does not change that stored value. Never apply a swap
    delta to the accounted ledger in addition to its absolute checkpoint.
    `MakerWrapperCostApplied` is accounting only. Complete the transaction before
    publishing a quote state, especially for loans and wrap/unwrap operations.
@@ -138,7 +138,10 @@ share each token word; bits 225–255 are reserved.
 | `104+c/10`, offset `24*(c%10)` | Category inventory cap in USD-wad, packed mantissa/shift |
 | `107+i/2`, offset `128*(i%2)` | Accounted units: xStock shares or ordinary raw amounts, unsigned 128-bit |
 | 121 bits 0–13 | Inventory zero-encoding bitmap; see above |
-| 122–127 | Reserved; logical zero |
+| 122 | Perpl venue/account configuration; preserved by the mirror and not read by maker quotes |
+| 123–126 | Perpl market configuration; preserved by the mirror and not read by maker quotes |
+| 127 | Perpl positions; preserved by the mirror and not read by maker quotes |
+| `128+k/2`, offset `128*(k%2)` | Stored xStock multiplier keyed by compiled catalog ID, uint128; outside the 126-word page, read with `storedMultiplier(token)` |
 
 Masked writes preserve bits outside their owning fields, including category
 and token-policy spare bits. Price, covariance, pair, coefficient and target
@@ -215,18 +218,20 @@ metadata and category USD targets; wrapper publication changes its policy and ta
 ## Wrapper inventory and donation timing
 
 Unwrapped xStocks use immutable shares in words 107–120 and inventory events.
-Value them at `floor(shares * currentMultiplier / 1e18)` for the selected block.
-Read physical `sharesOf` and the current multiplier at the same pin as the page;
-never reconstruct shares from rounded `balanceOf`. Each maker transfer changes
-accounted shares by `floor(amount * 1e18 / currentMultiplier)` independently,
-including separate recipient and fee transfers. Scheduled rebases change the
-valuation without writing the ledger. Zero accounted shares value to zero
-without a multiplier call. Ordinary token units and events retain their meaning.
+Value them at `floor(shares * storedMultiplier / 1e18)` for the selected block.
+Read physical `sharesOf(proxy)` on each stock and `storedMultiplier(token)` on
+the executor at the same block pin as the page. Never reconstruct shares from
+rounded `balanceOf`. Each maker transfer independently floors its share amount,
+including separate recipient and fee transfers. The executor requires the issuer
+and stored multiplier to agree for settlement involving that stock. A successful
+sync changes valuation and emits `MakerMultiplierUpdated` without rewriting the
+share ledger. Zero accounted shares value to zero. Ordinary token units and
+events retain their meaning.
 
 
 For a quote on `i -> o`, form the raw holdings vector `B` by taking the physical
 snapshot balance for `i` and `o`, and the stored accounted balance for every
-other wrapper, converting xStock accounted shares with the current multiplier. Native MON stays live and is added only when valuing WMON's
+other wrapper, converting xStock accounted shares with the stored multiplier. Native MON stays live and is added only when valuing WMON's
 category. Use this same vector for covariance risk, wrapper friction, output
 capacity and cap checks. View calls preview reconciliation without writing it.
 

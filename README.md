@@ -1,28 +1,35 @@
 # ThogAMM integration
 
-Integrate the **13-token ThogAMM pool on Monad**, including SPYx, QQQx, EWYx,
-NVDAx and TSLAx. Start with the [integration guide](THOGAMM_AGGREGATOR_INTEGRATION.md)
+Integrate the **17-token ThogAMM pool on Monad**, including SPYx, QQQx, EWYx,
+NVDAx, TSLAx, SMHx, SPCXx, MUx and SKHYx. Start with the [integration guide](THOGAMM_AGGREGATOR_INTEGRATION.md)
 for addresses, quoting and settlement. Routers that pull input first should use
 the [funding example](THOGAMM_AGGREGATOR_INTEGRATION.md#funding-through-an-aggregator);
 execution output is a guarantee, so compare `received >= amount_out`.
 
 | Resource | Use |
 | --- | --- |
-| [Polling SDK 0.5.0](https://github.com/thogard785/thog-amm-poll-sdk) | Refresh complete state, then quote locally |
-| [Event SDK 0.5.0](https://github.com/thogard785/thog-amm-event-sdk) | Replay pool/share events and refresh issuer multipliers |
+| [Polling SDK 0.6.0](https://github.com/thogard785/thog-amm-poll-sdk) | Refresh complete state, then quote locally |
+| [Event SDK 0.6.0](https://github.com/thogard785/thog-amm-event-sdk) | Replay pool/share and stored-multiplier events |
 | [ABI](abi/ThogAMM.json) · [Numeric reference](REFERENCE.md) | Implement another language or transport |
 
 Proxy: `0x80c74517BCC2D67fFE02D3ED886796272F647210`. Chain ID: **143**.
 Current state format: **schema 8 / wire 8 / model 3**, capacity 28 tokens.
 Read `getPoolData(0, 28)` and the listed xStocks’ share/multiplier state at one
-block hash. SDK **0.5.0** supports the deployed contract; SDK 0.4.1 remains for historical model 2.
-Verify the model identity at the selected block before choosing an SDK.
-Model 3 was activated at block **117177785**. See the [upgrade record](fixtures/upgrade-model3.json)
-and [initial model-3 runtime hashes](fixtures/deployment-model3-initial.json).
-The current implementation is `0xdd3f40a394f6261e842fde88db18a49106806c10`;
-all nine [implementation/library runtimes](fixtures/deployment.json) were verified
-against compiled source at block **119204325**. The maker ABI and model-3
-reconstruction rules remain unchanged, so SDK 0.5.0 still applies.
+block hash. SDK **0.6.0** reads the executor's stored multipliers and follows
+`MakerMultiplierUpdated`. The old 0.5.0 release reads issuer multipliers; it can
+diverge between issuer activation and synchronization. Both implementations use
+identity 8/8/3, so verify the implementation as well as the snapshot's identity.
+
+The current implementation is `0xb108a1daf3c9ba52778b97a15ebdfa3f6f59b506`. All ten
+[implementation/library runtimes](fixtures/deployment.json) match compiled
+source. The [upgrade and 17-token registry](fixtures/upgrade-stored-multipliers.json)
+were verified at block **122889027** on November 17, 2026 UTC. Maker selectors,
+quote equations and the 126-word page format are unchanged; multiplier inputs
+now come from the executor's stored values.
+
+The rollout leaves the executor paused and the updated backend stopped for an
+explicit restart. Query current onchain availability; see
+[upgrade availability](THOGAMM_AGGREGATOR_INTEGRATION.md#upgrade-availability).
 
 ## Verification
 
@@ -54,9 +61,14 @@ snapshots and 220 logs, including all words, metadata, physical shares, balances
 issuer multipliers and native MON. [Publication fixtures](fixtures/events-fork-v8.bin.gz)
 cover readiness, anchor changes, spare bits and caps.
 [Current runtime evidence](fixtures/deployment.json) records the model-3
-implementation and eight linked libraries. [Model-2 runtime evidence](fixtures/deployment-model2.json)
+implementation and nine linked libraries. [Model-2 runtime evidence](fixtures/deployment-model2.json)
 is preserved separately.
 
 See [verification instructions](verification/README.md) to reproduce the captures.
 All fork tests are local. Error parity means matching acceptance/rejection;
 SDK errors do not reproduce Solidity revert bytes.
+
+Stored-multiplier release checks also validate finalized multiplier events,
+unchanged values in log-free blocks, invalid-value rejection, and no steady-state
+RPC reads in the event SDK. The deployed expanded snapshot loads successfully
+with SDK 0.6.0 (17 tokens, 14 categories, nine share holdings).

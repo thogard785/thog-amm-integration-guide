@@ -1,57 +1,39 @@
 [
   {
+    "name": "TakerExecutor",
+    "address": "0xb108A1daF3C9BA52778b97a15eBDFa3F6f59b506",
+    "runtimeBytes": 130753,
+    "sha256": "b74a0429501ae2dd11695b67a74243c6b4554f254c924b129b87327bb8c30846",
+    "matchesCompiledSource": true,
+    "verifiedBlock": 122888179,
+    "verifiedBlockHash": "0x18e61ba9acf2d9b1812e8dc02c236d4923f1782e7250486ba4fcfd6e5c44d904"
+  },
+  {
     "name": "MakerEulerCatalog",
     "address": "0xf7bd6c839ac5a79c267769689b049660597c530b",
     "runtimeBytes": 360,
     "sha256": "9d33a52ea701fbfc0e191f118981c006ccc7f43fe60fb9954a596a7a1bc13ec4",
     "matchesCompiledSource": true,
-    "verifiedBlock": 119204325,
-    "verifiedBlockHash": "0x3d88e3392f19fffb7bce1761f7206413692c3bde8c73dbb9c2710bdedf441aef"
+    "verifiedBlock": 122888179,
+    "verifiedBlockHash": "0x18e61ba9acf2d9b1812e8dc02c236d4923f1782e7250486ba4fcfd6e5c44d904"
   },
   {
     "name": "ExecutorConfiguration",
-    "address": "0x3f8a707c73ef45d652c42c0323c9e18adbdb2af4",
-    "runtimeBytes": 4561,
-    "sha256": "de79873a9ea1a32620fa17b748b4bec4a3b7d8e13e4201173dd856d29d011194",
+    "address": "0x116ed6df82a6aadc28f241fa60265784d6a1071b",
+    "runtimeBytes": 8815,
+    "sha256": "e84911e5bcd25ffca3f1f67f34468664adbe9a6450c4d6798b06ef3bb400679d",
     "matchesCompiledSource": true,
-    "verifiedBlock": 119204325,
-    "verifiedBlockHash": "0x3d88e3392f19fffb7bce1761f7206413692c3bde8c73dbb9c2710bdedf441aef"
+    "verifiedBlock": 122888179,
+    "verifiedBlockHash": "0x18e61ba9acf2d9b1812e8dc02c236d4923f1782e7250486ba4fcfd6e5c44d904"
   },
   {
     "name": "MakerInventoryCaps",
-    "address": "0x5891adf4cd905fa0dfa1aa24bcb34acc5b49693f",
-    "runtimeBytes": 12979,
-    "sha256": "f1e56e89abdd4a9f480c3395ef111cd0a58d582b801cc4858458e1cf89ced982",
+    "address": "0x430335d6066fe7d5a279bf9a9b92872070206905",
+    "runtimeBytes": 12555,
+    "sha256": "b14eddde0be2753f97f43a556d20045ae98de6419a8c391d3a058359eb8f6e54",
     "matchesCompiledSource": true,
-    "verifiedBlock": 119204325,
-    "verifiedBlockHash": "0x3d88e3392f19fffb7bce1761f7206413692c3bde8c73dbb9c2710bdedf441aef"
-  },
-  {
-    "name": "MakerLending",
-    "address": "0xa19e059628a5832e5b01f52a8aaf2f93c836a4fa",
-    "runtimeBytes": 9117,
-    "sha256": "b0bf2666f92365936c556a2d1b00e1d1ed5cdc4ea1fd6f394e99030f3dc666ae",
-    "matchesCompiledSource": true,
-    "verifiedBlock": 119204325,
-    "verifiedBlockHash": "0x3d88e3392f19fffb7bce1761f7206413692c3bde8c73dbb9c2710bdedf441aef"
-  },
-  {
-    "name": "MakerPoolData",
-    "address": "0x18bfbd829853c93400eef68397f53b5e3306c6f0",
-    "runtimeBytes": 18464,
-    "sha256": "e875664494e46b999ce881095208d1c533de39c7a8fbe89c07f83e87dfcc68a3",
-    "matchesCompiledSource": true,
-    "verifiedBlock": 119204325,
-    "verifiedBlockHash": "0x3d88e3392f19fffb7bce1761f7206413692c3bde8c73dbb9c2710bdedf441aef"
-  },
-  {
-    "name": "MakerRiskPublication",
-    "address": "0xb8779a4433a23301f7d508b9c107aab6c0a42d6e",
-    "runtimeBytes": 6441,
-    "sha256": "15f45ddefc3e747ae35bd5ca0a9813a7655e88889734f47647a85029c08c3eb6",
-    "matchesCompiledSource": true,
-    "verifiedBlock": 119204325,
-    "verifiedBlockHash": "0x3d88e3392f19fffb7bce1761f7206413692c3bde8c73dbb9c2710bdedf441aef"
+    "verifiedBlock": 122888179,
+    "verifiedBlockHash": "0x18e61ba9acf2d9b1812e8dc02c236d4923f1782e7250486ba4fcfd6e5c44d904"
   },
   {
     "name": "MakerRoutingMath",
@@ -59,8 +41,35 @@
     "runtimeBytes": 5877,
     "sha256": "d570bbcf72acbc3b1761ec36d2a9270d28ec9bcb7e7c493f7506f2fe1235ff7b",
     "matchesCompiledSource": true,
-    "verifiedBlock": 119204325,
-    "verifiedBlockHash": "0x3d88e3392f19fffb7bce1761f7206413692c3bde8c73dbb9c2710bdedf441aef"
+    "verifiedBlock": 122888179,
+    "verifiedBlockHash": "0x18e61ba9acf2d9b1812e8dc02c236d4923f1782e7250486ba4fcfd6e5c44d904"
+  },
+  {
+    "name": "MakerPoolData",
+    "address": "0x7ce3d6b74ca0ffe23ac624a45d5dcca424077dc9",
+    "runtimeBytes": 19280,
+    "sha256": "6817c2c748511c9b81062a998a76c755f937ba70926c67a37d23ddf710948c14",
+    "matchesCompiledSource": true,
+    "verifiedBlock": 122888179,
+    "verifiedBlockHash": "0x18e61ba9acf2d9b1812e8dc02c236d4923f1782e7250486ba4fcfd6e5c44d904"
+  },
+  {
+    "name": "MakerLending",
+    "address": "0xcb813acc02d7f1acf45270c0f03a1d55b80d0ee2",
+    "runtimeBytes": 14365,
+    "sha256": "18ada147ed996f4a71136602bbda6857bc9e15ea8fc6084492e2ae6ad490708d",
+    "matchesCompiledSource": true,
+    "verifiedBlock": 122888179,
+    "verifiedBlockHash": "0x18e61ba9acf2d9b1812e8dc02c236d4923f1782e7250486ba4fcfd6e5c44d904"
+  },
+  {
+    "name": "MakerRiskPublication",
+    "address": "0x45da4d74dc7fac9fac1a19e4f8199da62188d004",
+    "runtimeBytes": 6522,
+    "sha256": "48c9c9cf50fa179eec7823db40f45523a1aaf7883478fb75d3f60d6f2d32ec8a",
+    "matchesCompiledSource": true,
+    "verifiedBlock": 122888179,
+    "verifiedBlockHash": "0x18e61ba9acf2d9b1812e8dc02c236d4923f1782e7250486ba4fcfd6e5c44d904"
   },
   {
     "name": "OnePageMigration",
@@ -68,16 +77,16 @@
     "runtimeBytes": 5752,
     "sha256": "aa3ecbc2cbc67f3bcce614a50c46fbbf324f7e66a0669a97a32e8f9cb737e531",
     "matchesCompiledSource": true,
-    "verifiedBlock": 119204325,
-    "verifiedBlockHash": "0x3d88e3392f19fffb7bce1761f7206413692c3bde8c73dbb9c2710bdedf441aef"
+    "verifiedBlock": 122888179,
+    "verifiedBlockHash": "0x18e61ba9acf2d9b1812e8dc02c236d4923f1782e7250486ba4fcfd6e5c44d904"
   },
   {
-    "name": "TakerExecutor",
-    "address": "0xdd3f40a394f6261e842fde88db18a49106806c10",
-    "runtimeBytes": 130696,
-    "sha256": "a818cca842c0bf2262fa769147cbe1969eb5ca895eb1a3c07ed07f7d5663a7c0",
+    "name": "PerplTrading",
+    "address": "0xd883f5a79ab82969b529276456eeb8a71f940ca5",
+    "runtimeBytes": 29079,
+    "sha256": "5316087ace8a9fbd67ef18638fdcc21461079922e49d565ff9d4fe3af5e06672",
     "matchesCompiledSource": true,
-    "verifiedBlock": 119204325,
-    "verifiedBlockHash": "0x3d88e3392f19fffb7bce1761f7206413692c3bde8c73dbb9c2710bdedf441aef"
+    "verifiedBlock": 122888179,
+    "verifiedBlockHash": "0x18e61ba9acf2d9b1812e8dc02c236d4923f1782e7250486ba4fcfd6e5c44d904"
   }
 ]
