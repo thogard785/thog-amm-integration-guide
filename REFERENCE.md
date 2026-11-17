@@ -2,8 +2,8 @@
 
 This is the deployed **schema 8 / wire 8 / model 3** numeric reference. For onboarding,
 see the [integration guide](THOGAMM_AGGREGATOR_INTEGRATION.md). The
-[shared Rust model](https://github.com/thogard785/thog-amm-poll-sdk/tree/v0.6.0/model)
-is the executable reference for SDK 0.6.0. Verify the implementation and model
+[shared Rust model](https://github.com/thogard785/thog-amm-poll-sdk/tree/v0.6.1/model)
+is the executable reference for SDK 0.6.1. Verify the implementation and model
 identity before selecting an SDK; stored multipliers retain model identity 3.
 Floating-point approximations cannot reproduce exact integer execution.
 
@@ -30,7 +30,7 @@ Do not apply physical-marker decoding to its returned values.
 1. Call `getPoolData(0, 28)` at one pinned block hash. Check `schemaVersion == 8`,
    active counts in `1..28`, and the registry metadata. Decode the returned
    `StorageWord[]` by its explicit slot numbers. Verify layout 8, wire 8 and model 3
-   in slot 8 bits 160–215, and require its registry generation to be nonzero. Quote words are slots 2–127. `portfolioBalances` contains **all** registered token balances even
+   in slot 8 bits 160–215, and require its registry generation to be nonzero. The returned page covers slots 2–127; maker quotes use slots 2–121. `portfolioBalances` contains **all** registered token balances even
    if metadata pagination is used. `nativeBalance` is separate. Bind the returned
    block number and parent hash to the selected RPC header; the parent hash is
    not the current block hash.
@@ -50,17 +50,19 @@ Do not apply physical-marker decoding to its returned values.
    substitute locally desired policy.
 4. `MakerLendingExposureUpdated(uint8 indexed venue, uint8 indexed category,
    uint32 sequence, int64 offset)` supplies the absolute category offset and
-   lending sequence after a borrow/repay. Venue 0 is Neverland; 1 is Euler.
-   Replace the category's signed low 64 bits and slot 7 bits 160–191. The sequence advances
-   by one per lending operation. A gap requires a snapshot. Cash movement and
-   this update belong to the same transaction.
+   exposure sequence after a borrow, repayment, perpetual fill or position sync.
+   Venue 0 is Neverland, 1 is Euler and 2 is Perpl; the venue is informational.
+   Replace the category's signed low 64 bits and slot 7 bits 160–191. The sequence
+   advances by one per exposure update. A gap requires a snapshot.
+   `PerplTradeExecuted`, `PerplSynced`, `PerplConfigured` and
+   `PerplCollateralMoved` require no additional quote-state updates. Do not
+   count their position changes again after applying the exposure event.
 5. `MakerTokenAdded` and `MakerTokenRetired` change the registry generation and may change its geometry. Discard a model for the old
    shape and rebuild it from a complete snapshot with the new configuration.
    `MakerTokenAdded` has the expanded bid/ask, volume-rate and inventory-cap
    metadata tuple; derive its signature from the current ABI.
    It does not carry new covariance/pair rows, so the listing event alone cannot
-   reconstruct the expanded page. The bot's publisher deliberately requires
-   restart to bind that configuration.
+   reconstruct the expanded page.
 6. On a reorg, discard affected event positions and reload the replacement
    fork. A snapshot covers events through its block. Older events may still
    resolve submission/landing attribution but must not rewind canonical state.
@@ -85,14 +87,10 @@ Do not apply physical-marker decoding to its returned values.
    ordinary event subscriptions alone cannot guarantee those balances.
    Advance the quote block even when a block has no relevant events.
 
-The old `MakerPriceStateUpdated`, `MakerPricesPushed`, risk-state/params events
-and packed category-inventory events remain removed. The new per-wrapper
-`MakerInventoryUpdated(uint8,address,uint128)` has its own ABI signature and
-must not be decoded as a historical packed-inventory event. `MakerStorageUpdated` remains declared
-for historical decoding but is not emitted in v8. See the
-[event migration table](THOGAMM_AGGREGATOR_INTEGRATION.md#event-changes-from-the-previous-integration-guide)
-for the exact old-to-new mapping. A schema change requires the corresponding ABI
-and model; do not decode schema 8 with the retired packed snapshots.
+`MakerInventoryUpdated(uint8,address,uint128)` is an absolute per-token
+checkpoint. `MakerStorageUpdated` is not emitted in schema 8. A schema change
+requires the corresponding ABI and model; do not decode schema 8 with retired
+packed snapshots.
 
 Before quote execution, the version must be 8, maker pause must be false,
 prices must be enabled, structural and wrapper readiness must be set. Both endpoint sides must be enabled.
@@ -138,9 +136,9 @@ share each token word; bits 225–255 are reserved.
 | `104+c/10`, offset `24*(c%10)` | Category inventory cap in USD-wad, packed mantissa/shift |
 | `107+i/2`, offset `128*(i%2)` | Accounted units: xStock shares or ordinary raw amounts, unsigned 128-bit |
 | 121 bits 0–13 | Inventory zero-encoding bitmap; see above |
-| 122 | Perpl venue/account configuration; preserved by the mirror and not read by maker quotes |
-| 123–126 | Perpl market configuration; preserved by the mirror and not read by maker quotes |
-| 127 | Perpl positions; preserved by the mirror and not read by maker quotes |
+| 122 | Perpl venue/account configuration; snapshot only; not replayed or read by maker quotes |
+| 123–126 | Perpl market configuration; snapshot only; not replayed or read by maker quotes |
+| 127 | Perpl positions; snapshot only; not replayed or read by maker quotes |
 | `128+k/2`, offset `128*(k%2)` | Stored xStock multiplier keyed by compiled catalog ID, uint128; outside the 126-word page, read with `storedMultiplier(token)` |
 
 Masked writes preserve bits outside their owning fields, including category
@@ -449,7 +447,7 @@ The existing 90% quote threshold remains an admission policy, not a reservation.
 Reconciliation, a price change, a taker fill or a manual cap reduction can place
 existing holdings over a threshold. Preserve that starting balance. For either
 quote or settlement, the effective limit is `max(startingHolding, threshold)`;
-for the receiving wrapper also clamp it to the nominal value of `uint128.max` stored units. For xStocks this is `floor(uint128.max * currentMultiplier / 1e18)`; for other tokens it is `uint128.max`. Thus an operation may
+for the receiving wrapper also clamp it to the nominal value of `uint128.max` stored units. For xStocks this is `floor(uint128.max * storedMultiplier / 1e18)`; for other tokens it is `uint128.max`. Thus an operation may
 reduce an existing category excess but cannot increase it. Configured caps do
 not change when excess holdings are admitted. The outgoing wrapper's cap never
 prevents selling it down.

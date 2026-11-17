@@ -4,7 +4,42 @@ The historical model-2 fixtures use the deployed ThogAMM proxy, token code and l
 Monad block **117074438**. Expected results are contract return bytes; the SDK
 never generates its own expected values.
 
-## Model-3 execution capture
+## Current 17-token captures
+
+Use an archive-capable Monad RPC endpoint for these recorded blocks:
+
+```sh
+python3 tools/verify_runtime.py --rpc "$MONAD_RPC"
+python3 tools/capture_quotes.py --rpc "$MONAD_RPC" --blocks 122916130
+python3 tools/capture_events.py --rpc "$MONAD_RPC" --start 122916204 --stop 122916254
+```
+
+The defaults write `deployed-stored-multipliers.json.gz` and
+`events-stored-multipliers.json.gz` under `fixtures/`. State reads use the same
+EIP-1898 block hash, including `sharesOf(proxy)` on all nine xStocks and
+`storedMultiplier(token)` on the pool. The latter returns one uint256.
+The capture tools do not call the issuer's multiplier getter.
+
+Copy these fixtures unchanged into each SDK's `tests/common/` and run
+`cargo test --locked --release --workspace --all-targets` in the polling SDK,
+or `cargo test --locked --release --all-targets` in the event SDK.
+The recorded quote corpus has 3,264 calls across 272 directions. Replay covers
+50 blocks and 505 logs, including a Perpl exposure update. It compares all quote
+state against independent snapshots. Slots 122–127 describe perpetual account
+operations and are not quote inputs or maintained by event replay; tests compare
+all pairs' quotes before omitting those fields from state equality.
+
+The runtime verifier checks the current implementation and all linked-library
+hashes against [deployment.json](../fixtures/deployment.json). It compares
+addresses without regard to checksum casing.
+
+## Historical model-3 execution capture
+
+The sections below describe the preserved historical corpora. Reproduction
+requires their original contract source, tools and fork state. The current
+capture tools require `storedMultiplier` and cannot read the pre-upgrade
+implementation. Historical mainnet capture tools remain at guide revision
+[`d4e93c6`](https://github.com/thogard785/thog-amm-integration-guide/tree/d4e93c6/tools).
 
 With the matching takerbot source checkout and its pinned submodules available:
 
@@ -29,24 +64,14 @@ and event corpora are replayed with an explicit test-only identity migration;
 their old bytes and expected outputs remain intact. `execution-v8.json.gz` is
 an archive of the old policy, not an active model-3 parity fixture.
 
-## Read-only mainnet captures
+## Historical mainnet captures
 
-```sh
-python3 tools/verify_runtime.py --rpc https://rpc.monad.xyz
-python3 tools/capture_quotes.py --rpc https://rpc.monad.xyz --blocks 117074438
-python3 tools/capture_events.py --rpc https://rpc.monad.xyz --start 117074438 --stop 117074638
-```
-
-Historical capture requires an archive-capable endpoint. Pool and issuer reads
-use EIP-1898 block hashes. The runtime verifier checks the proxy implementation
-and SHA-256 hashes of the current model-3 deployment in
-[deployment.json](../fixtures/deployment.json). The historical
-[model-2 manifest](../fixtures/deployment-model2.json) remains unchanged;
-[upgrade-model3.json](../fixtures/upgrade-model3.json) records the original model upgrade
-and storage checks, with its original runtimes preserved in
-[deployment-model3-initial.json](../fixtures/deployment-model3-initial.json).
-The current manifest was refreshed after a taker-only implementation upgrade;
-the maker interface, model identity, and reconstruction semantics are unchanged.
+The original mainnet captures use block 117074438 for quotes and blocks
+117074438–117074638 for replay. Their issuer multiplier reads reflect that
+implementation. Preserve the recorded fixtures; do not replace them with
+current-format captures. Historical runtime manifests are
+[model 2](../fixtures/deployment-model2.json) and
+[initial model 3](../fixtures/deployment-model3-initial.json).
 
 ## Local fork captures
 
@@ -93,7 +118,8 @@ in the event SDK for offline comparisons. See the [result counts](../README.md#v
 ## Aggregator funding and output guarantees
 
 `forge test --root verification --network monad --match-test test_integration -vv`
-checks 30 settlement cases across the five listed xStocks and three multipliers.
+checks 30 historical settlement cases across the five xStocks listed in that
+fork and three multipliers.
 It locally funds output inventory and relaxes receiving caps for synthetic rebases
 so each case reaches settlement; it does not assert live liquidity availability.
 Buy credits exceed the requested guarantee; separate router funding uses newly

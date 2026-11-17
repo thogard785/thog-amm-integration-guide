@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Capture hash-pinned issuer/pool snapshots and logs for independent replay checks."""
+"""Capture hash-pinned pool/share/stored-multiplier state and logs for replay checks."""
 import argparse
 from concurrent.futures import ThreadPoolExecutor
 import gzip
@@ -18,7 +18,7 @@ def main():
     p.add_argument('--rpc', default='https://rpc.monad.xyz')
     p.add_argument('--start', type=int, required=True)
     p.add_argument('--stop', type=int, required=True)
-    p.add_argument('--output', type=Path, default=Path('fixtures/events-v8.json.gz'))
+    p.add_argument('--output', type=Path, default=Path('fixtures/events-stored-multipliers.json.gz'))
     a = p.parse_args()
     rpc = RPC(a.rpc)
     owner = '0x'+word(int(PROXY, 16))

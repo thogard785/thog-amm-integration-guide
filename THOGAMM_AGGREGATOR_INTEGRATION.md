@@ -1,58 +1,23 @@
 # ThogAMM aggregator integration
 
-ThogAMM is an inventory-funded liquidity source on Monad mainnet. Use
-`makerQuoteExactInput` for a read-only quote and `makerSwapExactInput` for
-settlement with a minimum output and block deadline. For local quoting, use the
-[polling SDK](https://github.com/thogard785/thog-amm-poll-sdk) or
-[event SDK](https://github.com/thogard785/thog-amm-event-sdk), the **0.6.0** stored-multiplier release.
-
-This guide describes **schema 8 / wire 8 / model 3** with executor-stored xStock
-multipliers. The implementation is `0xb108a1daf3c9ba52778b97a15ebdfa3f6f59b506`, verified against compiled source
-with all nine linked libraries; [runtime evidence](fixtures/deployment.json).
-The upgrade and expanded registry were verified at block **122889027** on
-November 17, 2026 UTC; [transactions and state checks](fixtures/upgrade-stored-multipliers.json).
-
-Use **SDK 0.6.0** for this implementation. SDK 0.5.0 reads issuer multipliers
-and can disagree between an issuer change and the executor's synchronization.
-Schema/wire/model identity remains 8/8/3, so identity alone cannot distinguish
-these implementations. Model 3 was originally activated at block **117177785**;
-[historical activation](fixtures/upgrade-model3.json).
-
-The pool lists **17 tokens**, including all nine unwrapped xStocks, with capacity
-for 28. Both SDKs discover the active registry from `getPoolData(0, 28)`.
-Share accounting recognizes the contract's
-[nine compiled xStock addresses](https://github.com/thogard785/thog-amm-poll-sdk/blob/v0.6.0/model/src/shares.rs).
-Extending the compiled xStock catalog requires a matching SDK release.
+ThogAMM provides inventory-funded swaps on **Monad mainnet (chain ID 143)**.
+Use the [polling SDK](https://github.com/thogard785/thog-amm-poll-sdk) or
+[event SDK](https://github.com/thogard785/thog-amm-event-sdk), version **0.6.1**,
+for local quotes. Both support all 17 listed tokens, including SMHx, SPCXx,
+MUx and SKHYx, and use the pool's stored xStock multipliers.
 
 ## Deployment
 
 | Field | Value |
 | --- | --- |
-| Network / chain ID | Monad mainnet / `143` |
+| Proxy — send all calls here | `0x80c74517BCC2D67fFE02D3ED886796272F647210` |
 | Implementation | `0xb108a1daf3c9ba52778b97a15ebdfa3f6f59b506` |
-| Proxy | `0x80c74517BCC2D67fFE02D3ED886796272F647210` |
 | Pool ID | `0xce389e78282dedac7b18ba7f775b7602d2ab3ab171bbd6711eb0239be6ef4dcc` |
 | FastLane AuctionHandler | `0xD32EdF6642D917DbBE7B8BF8e5d6F5df6a9FFF58` |
-| Explorer | [Monadscan](https://monadscan.com/address/0x80c74517BCC2D67fFE02D3ED886796272F647210) |
 
-Send calls to the proxy. Display name: `ThogAMM`;
-[logo](https://avatars.githubusercontent.com/u/85769984?v=4).
-
-## Upgrade availability
-
-The stored-multiplier rollout pauses maker liquidity and taker execution while
-the shared backend is stopped. The operator upgrades with `upgradeAndCall`,
-initializing the existing xStock multipliers atomically, then appends the four
-new listings and publishes caps. The 126-word pool page is preserved by the
-implementation upgrade; no page migration runs. New listings change registry
-generation and require a complete snapshot.
-
-The November 17 rollout was verified with the executor **paused** and the new
-backend prepared but stopped. This is a recorded maintenance state; query
-`paused()` and the current page for live availability. Before unpausing, the
-operator starts the matching backend and confirms all valuation feeds, complete
-risk/wrapper policy, fresh prices and stored multiplier synchronization.
-Reconnect with SDK 0.6.0 and obtain a fresh snapshot after the upgrade.
+Display name: **ThogAMM** · [Logo](https://avatars.githubusercontent.com/u/85769984?v=4) ·
+[Explorer](https://monadscan.com/address/0x80c74517BCC2D67fFE02D3ED886796272F647210) ·
+[Complete ABI](abi/ThogAMM.json)
 
 ## Listed tokens
 
@@ -76,32 +41,19 @@ Reconnect with SDK 0.6.0 and obtain a fresh snapshot after the upgrade.
 | MUx | `0xf6a873bae4ba1b304e45df52a4b7d176e1c6a8c4` | 18 |
 | SKHYx | `0x58100046a4afcd4ee4fadbd4244f3f895a341c56` | 18 |
 
-`getTokens(poolId)` is authoritative. Indices, sides, balances and available sizes
-can change; read metadata instead of hard-coding indices. Use WMON for native MON
-routes. Fee-on-transfer tokens are unsupported.
+Read `getTokens(poolId)` for the current registry; do not hard-code indices.
+Use WMON for native MON routes. Fee-on-transfer tokens are unsupported.
+The nine xStocks are unwrapped tokens with 18 decimals; their wrapped versions
+are separate assets and are not listed in this pool.
 
-The nine xStocks are **unwrapped tokens**, each with 18 decimals. The separate
-wxStock wrapper addresses are not listed here. xStock balances rebase through an
-issuer multiplier; a multiplier activation can occur without a transfer or log.
-The contract does not call the issuer when it quotes or settles. It uses its own
-stored copy of each multiplier, `storedMultiplier(token)`, which a
-`syncMultipliers` call brings up to the issuer's whenever that changes. **Model
-quotes from the stored copy, for every listed stock and for every pair.** A
-held stock's value enters the risk term of all pairs, so between an issuer's
-change and the sync a model that reads the issuer instead disagrees with the
-contract on every pair, slightly, not only on that stock. In that interval the
-publisher turns the stock's own sides off, and the contract refuses a swap of
-that stock (`xstock: multiplier stale`) until the copy is synced.
+## Quote and swap
 
-## Smallest integration
-
-1. Discover the tokens, then call `makerQuoteExactInput(tokenIn, tokenOut, amountIn)`.
-   All amounts are raw token units. The result is `(amountOut, lastPostedBlock)`.
-2. Simulate the actual settlement call with the intended caller, fee fields and
-   route context. The caller needs input-token funds and allowance to the proxy.
-3. Call `makerSwapExactInput` with your acceptable `minAmountOut`, recipient and
-   inclusive `deadlineBlock`. Send zero native value; the proxy pulls input with
-   `transferFrom` and sends output to the recipient.
+1. Call `makerQuoteExactInput` with raw token units.
+2. Approve the proxy to spend the input token. Simulate the complete route with
+   the intended caller, recipient and transaction fee fields.
+3. Call `makerSwapExactInput` with your minimum output and inclusive block
+   deadline. Send zero native value. The proxy pulls input from the caller and
+   transfers output to the recipient.
 
 ```solidity
 interface IThogAMM {
@@ -114,166 +66,78 @@ interface IThogAMM {
 }
 ```
 
-Use the [complete ABI](abi/ThogAMM.json) for state, events and ERC-7815 calls.
-
 ## Funding through an aggregator
 
-The SDK models the Thog call, including its own input/output share rounding.
-If a router first pulls xStocks, that funding transfer rounds independently.
-Pass the router's **newly received input**, not the requested transfer amount or
-its total balance. This fragment uses OpenZeppelin `IERC20` and
-`using SafeERC20 for IERC20;` inside your router's guarded swap, with distinct
-input/output tokens and an external recipient:
+xStock transfers round to whole shares. If your router first pulls input, quote
+and pass its **newly received amount**, measured as the balance increase.
+Exclude the router's pre-existing funds and handle residual input through its
+normal refund policy. Each subsequent transfer rounds independently.
 
-```solidity
-uint256 beforeIn = tokenIn.balanceOf(address(this));
-tokenIn.safeTransferFrom(msg.sender, address(this), requestedIn);
-uint256 amountIn = tokenIn.balanceOf(address(this)) - beforeIn;
-tokenIn.forceApprove(address(thog), amountIn);
-
-uint256 beforeOut = tokenOut.balanceOf(recipient);
-uint256 guaranteedOut = thog.makerSwapExactInput(
-    address(tokenIn), address(tokenOut), amountIn,
-    minAmountOut, recipient, deadlineBlock
-);
-uint256 received = tokenOut.balanceOf(recipient) - beforeOut;
-require(received >= guaranteedOut, "Thog output below guarantee");
-// Report/use received as this hop's output.
-```
-
-Use this measured `amountIn` for the Thog quote as well. Simulate the **whole
-route**, including funding and the actual fee/account-warmth context. Existing
-router funds must stay outside this trade; reconcile residual input through your
-router's refund/accounting policy. Sending Thog output directly to the intended
-recipient avoids an extra transfer. If the router forwards it, measure that
-recipient's credit again: each forwarding transfer rounds independently.
+The swap's returned `amountOut` is guaranteed recipient credit; the actual
+credit can be slightly greater. Measure output and check
+`received >= amountOut`. Do not subtract another rounding allowance from this
+guarantee. Sending output directly to the final recipient avoids another
+transfer; if your router forwards it, measure the final recipient's credit too.
 
 ## Quotes, limits and settlement
 
-- `getCapabilities` advertises Sell, Buy, price functions and marginal prices.
-- `getLimits` returns `[sellLimit, buyLimit]`: separate upper bounds, not a promise
-  that every smaller amount executes. The buy limit is physical output balance
-  less xStock output dust; receiving-token and category caps still apply.
-- `price` returns a fraction of raw output units per raw input unit. It is a
-  marginal price, not an average quote. Each requested amount uses the same state.
+- Read-only quotes exclude the execution output adjustment. Use the SDK's
+  `quote_execution_exact_input` for direct settlement and `quote_exact_output`
+  for ERC-7815 Buy. Both include the contract's share rounding.
+- Execution output depends on the effective gas price, block base fee, whether
+  the AuctionHandler account is already warm, and whether prices were updated
+  in that block. SDK defaults assume a cold AuctionHandler; `*_with_context`
+  accepts its actual warmth. Simulate the full route to reproduce this context.
+- Quotes enforce price age, enabled directions, pause status and inventory caps.
+  Read-only quotes use 90% cap thresholds; settlement uses full caps and actual
+  transfer deltas. Independent quotes do not simulate successive fills.
+- `getLimits` returns `[sellLimit, buyLimit]`, separate upper bounds. Smaller
+  amounts can still fail other checks. `price` is a marginal fraction of raw
+  output units per raw input unit, not an average quote.
 - ERC-7815 `swap(..., Sell, amountIn)` returns output in `Trade.calculatedAmount`;
-  `swap(..., Buy, amountOut)` returns the minimum required input. `swap` has no
-  minimum-output or expiry parameter. Simulate it, then simulate your chosen
-  protected settlement call as well: integer rounding and final inventory can differ.
+  `swap(..., Buy, amountOut)` returns required input. It has no minimum-output
+  or expiry argument; provide slippage protection in your settlement route.
+- `swapWithExtraFees` deducts
+  `floor(grossOutput * extraFeePpm / 1_000_000)`. Its minimum protects net output;
+  expiry is an inclusive Unix timestamp. A nonzero fee requires your collection
+  contract as `feeRecipient`. Simulate this call; SDK quotes exclude extra fees.
 
-Read-only quotes use strict 90% inventory-cap thresholds. Settlement uses full
-caps and actual transfer deltas. Existing inventory above a cap may decrease but
-cannot increase. Debt and risk targets do not offset these gross inventory caps.
-Quotes also enforce pause/readiness, enabled directions, price age and arithmetic
-bounds. Independent quotes do not simulate successive fills of shared inventory.
+For EIP-1559 transactions, effective gas price is
+`min(maxFeePerGas, baseFee + maxPriorityFeePerGas)`. Supply fee fields to Monad
+`eth_call`: use `gasPrice: 0x1` for state reads to preserve the block's base fee,
+and the intended fee context for settlement simulation. The final execution
+state determines output and whether the minimum is met.
 
-Execution applies a dynamic output reduction. Evaluate the following rows in
-order using the transaction's **effective** gas price and the current block's
-base fee; every gas-price comparison is strictly greater-than.
+## xStock multipliers and local state
 
-| First matching condition | Raw defense | Defense after a valuation update earlier in this block |
-| --- | ---: | ---: |
-| FastLane AuctionHandler is already warm | 12 bp | 2 bp |
-| `gasPrice > 2.5 * baseFee` | 12 bp | 2 bp |
-| `gasPrice > 2 * baseFee` | 8 bp | 1 bp |
-| `gasPrice > 1.5 * baseFee` | 6 bp | 0.5 bp |
-| Otherwise | 0 bp | 0 bp |
+**Read `storedMultiplier(token)` from the ThogAMM proxy, not a multiplier getter
+on the xStock.** It returns one `uint256`. Quoting and settlement use this
+stored value without calling the issuer's multiplier getter. The pool's
+`syncMultipliers` operation updates it and emits
+`MakerMultiplierUpdated(address,uint256)`.
 
-The same-block column applies exactly when the latest accepted valuation's
-`postedBlock` equals the execution block: `max(rawDefense / 4 - 1 bp, 0)`.
-A risk, wrapper, cap or inventory update alone does not qualify. The raw defense
-applies when the latest valuation is from an earlier block. Warmth and gas-price
-triggers do not stack. With zero base fee, any positive gas price selects 12 bp;
-a cold zero-price transaction selects zero. Fractional thresholds are exact,
-including odd base fees; implementations compare differences to avoid overflow.
+For a complete snapshot, read a header, `getPoolData(0, 28)`, each listed
+xStock's `sharesOf(proxy)`, and its pool-stored multiplier at the **same block
+hash**. Value shares as `floor(shares * storedMultiplier / 1e18)`. Include all
+listed xStocks: their inventory affects quotes for other pairs too. The issuer's
+`balanceOf` can differ until the stored multiplier is synchronized; settlement
+checks share deltas and can revert with `xstock: multiplier stale`.
 
-The configured age widening is **0.5 bp per elapsed block** without a valuation
-update (`widen_per_block_bps: 0.50`, encoded as 50 in 0.01 bp units). It adds to
-the pair's spread and affects both read-only and execution quotes. Execution
-defense is a separate multiplicative output reduction, not another age term.
+The polling SDK refreshes the complete snapshot. The event SDK loads one
+snapshot, then applies complete finalized blocks, including share transfers
+and `MakerMultiplierUpdated`, without further RPC reads. An issuer change by
+itself does not update the model. Quote calculations make no network calls.
+`at_block` changes quote age and fee context without fetching new state.
 
-The SDK's default execution methods assume a cold AuctionHandler; the
-`*_with_context` methods accept explicit warmth. For EIP-1559, effective gas price
-is `min(maxFeePerGas, baseFee + maxPriorityFeePerGas)`. `at_block(number, base_fee)`
-sets both age and the block/base-fee context used by this policy; it cannot predict
-an intervening valuation publication, trade or inventory change.
+Use SDK 0.6.1 for the implementation above. SDK 0.5.0 reads issuer multipliers
+and is incompatible; 0.6.0 already uses stored multipliers. The state format
+remains schema 8 / wire 8 / model 3, so format numbers alone cannot identify the
+implementation. On upgrades, check compatibility; on registry changes, reload
+the snapshot and rebuild prepared pairs. After a missing log or stream error,
+reconnect before resuming event-based quotes.
 
-For xStocks, the contract values `max(0, amountIn - inputDust)`, where each stock's dust
-is `max(2, ceil(multiplier / 1e18))` at its stored multiplier. The direct swap applies friction **after**
-subtracting output dust; ERC-7815 applies it **before** subtracting output dust.
-Settlement sends the quoted stock output plus dust, then floors that transfer to
-shares. The returned output is the guaranteed amount; actual receipt can exceed
-it by rounding. The SDK's execution `Quote.amount_out` has the same meaning under
-the quoted state/context; for ERC-7815 Buy it equals the requested target. Compare
-recipient credit with `received >= amount_out`, not equality, and do not subtract
-another xStock rounding tolerance from this guarantee. Read-only quotes omit
-execution friction. The settlement return and your `minAmountOut` apply to the
-actual execution state. These contract rules are implemented by the matching model-3 SDKs.
-
-Supply fee fields for Monad `eth_call`: an unpriced call can expose a zero base
-fee. State reads use `gasPrice: 0x1` to retain the block's base fee; trade simulation
-uses the actual transaction fee context. The final execution call is authoritative.
-
-`swapWithExtraFees` takes an integrator fee from gross output:
-`fee = floor(grossOutput * extraFeePpm / 1_000_000)`. Its `minAmountOut` protects
-net output and `expiry` is an inclusive Unix timestamp. A nonzero fee requires the
-integration's collection contract as `feeRecipient`. Simulate this actual call;
-the SDK's execution quote assumes an ordinary swap with no extra fee.
-
-## Build the schema-8 model in memory
-
-The SDKs share one integer quote model. A complete snapshot consists of:
-
-1. A canonical header and `getPoolData(0, 28)` at its block hash. Verify schema,
-   counts, registry generation, block number, parent hash and base fee.
-2. All 126 logical words at slots 2–127, token/category metadata, physical
-   `portfolioBalances` and native MON. `getPoolData` already decodes zero markers;
-   an inventory word equal to `1 << 255` is valid data.
-3. `sharesOf(proxy)` on each registered xStock and `storedMultiplier(token)` on
-   the executor, pinned to that same hash. The latter returns one uint256 word.
-   Check the page's physical balance equals `floor(shares * storedMultiplier / 1e18)`.
-   The issuer's `balanceOf` can differ during an unsynchronized multiplier change.
-
-Stored inventory is `uint128` units at slots 107–120: shares for xStocks, raw
-amounts for ordinary tokens. A quote uses physical holdings for its two endpoints
-and stored ledger holdings for every other token. Revalue all xStock shares with
-the executor's stored multiplier. Never reconstruct shares from rounded nominal
-balances. Multipliers live in sixteen appended storage slots; they are not part
-of the 126-word page and must be read with the dedicated getter.
-
-Polling refreshes the full image and discovers registry changes. Event updates
-apply pool checkpoints, token movements and `MakerMultiplierUpdated` in complete
-finalized blocks. After the initial snapshot, the event SDK performs no RPC reads.
-A log-free issuer activation does not change stored multipliers. Neither SDK
-performs network calls while calculating a quote. `at_block` changes age and
-execution context; it does not fetch trades, policy or multiplier updates.
-
-See the [exact model specification](REFERENCE.md) for word offsets, packed fields,
-curve equations, cap encoding and publication payloads.
-
-## Event changes from the previous integration guide
-
-| Event/input | Apply to |
-| --- | --- |
-| `MakerPageUpdated` lanes 1 / 2 / 4 / 8 | Prices / risk / wrappers / caps; verify emitted control |
-| `MakerInventoryUpdated(uint8,address,uint128)` | Absolute accounted units; validate index/address and update the inventory zero bitmap |
-| Ordinary ERC-20 `Transfer` | Physical balances of ordinary tokens |
-| xStock `TransferShares` | Physical shares; ignore its accompanying nominal `Transfer` |
-| `MakerMultiplierUpdated(address,uint256)` | Update the stored multiplier and revalue physical/accounted shares at finalization |
-| `MakerLendingExposureUpdated` | Absolute signed exposure offset and lending sequence. The venue topic is informational: 0 Neverland, 1 Euler, 2 a Perpl perpetual fill |
-| `MakerWmonBalanceCheckpoint`, `NativeBalanceCheckpoint` | Absolute physical WMON / native balance |
-| `Paused` | Maker pause bit |
-| `MakerTokenAdded`, `MakerTokenRetired` | Reload the complete registry and rebuild prepared pairs |
-| `Upgraded` | Verify implementation compatibility before reconnecting |
-
-`PerplConfigured`, `PerplTradeExecuted`, `PerplSynced` and
-`PerplCollateralMoved` need no handling: a perpetual fill or position sync
-reaches the model only as the `MakerLendingExposureUpdated` it emits, and risk
-publications are the same with or without the venue. Page words 122–127 hold that venue's state and are
-read by no quote.
-
-Process logs once in canonical transaction/log order. Swap, fee and wrapper-cost
-accounting events are not additional balance deltas. Missing events, malformed
-publications must not publish a partial snapshot. Reconnect
-explicitly after such errors. Forced native transfers need account-state data or a
-fresh snapshot; ordinary logs do not cover them.
+For a custom implementation, see the
+[model specification](REFERENCE.md) for exact arithmetic, packed state
+and event handling, and the
+[contract fixtures](https://github.com/thogard785/thog-amm-integration-guide#verification)
+for independent comparisons.

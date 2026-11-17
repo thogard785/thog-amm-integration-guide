@@ -88,8 +88,11 @@ XSTOCKS = ['0x90a2a4c76b5d8c0bc892a69ea28aa775a8f2dd48', '0xa753a7395cae905cd615
 def share_balances(rpc, tokens, block):
     selector = lambda sig: subprocess.check_output([str(Path.home()/'.foundry/bin/cast'), 'sig', sig], text=True).strip()
     shares_call = selector('sharesOf(address)') + word(int(PROXY, 16))
-    multiplier_call = selector('getCurrentMultiplier()')
-    calls = [(t['address'], data) for t in tokens if t['address'] in XSTOCKS for data in [shares_call, multiplier_call]]
+    multiplier_selector = selector('storedMultiplier(address)')
+    calls = [call for t in tokens if t['address'] in XSTOCKS for call in [
+        (t['address'], shares_call),
+        (PROXY, multiplier_selector + word(int(t['address'], 16))),
+    ]]
     if not calls: return {}
     responses = rpc.send([{'jsonrpc':'2.0','id':i,'method':'eth_call','params':[{'to':to,'data':data,'gasPrice':'0x1'},block]} for i,(to,data) in enumerate(calls)])
     by_id = {r['id']:r for r in responses}
@@ -97,8 +100,8 @@ def share_balances(rpc, tokens, block):
     result = {}
     for i in range(0, len(calls), 2):
         shares, multiplier = by_id[i]['result'], by_id[i+1]['result']
-        assert len(shares) == 66 and len(multiplier) == 194
-        result[calls[i][0]] = {'shares':hex(int(shares,16)), 'multiplier':hex(int(multiplier[2:66],16))}
+        assert len(shares) == 66 and len(multiplier) == 66
+        result[calls[i][0]] = {'shares':hex(int(shares,16)), 'multiplier':hex(int(multiplier,16))}
     return result
 
 def capture(rpc, block):
@@ -145,7 +148,7 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--rpc", default="https://rpc.monad.xyz")
     parser.add_argument("--blocks", help="comma-separated historical block numbers; default is the previous block")
-    parser.add_argument("--output", type=Path, default=Path("fixtures/deployed-v8.json.gz"))
+    parser.add_argument("--output", type=Path, default=Path("fixtures/deployed-stored-multipliers.json.gz"))
     args = parser.parse_args()
     rpc = RPC(args.rpc)
     chain_id = int(rpc.call("eth_chainId", []), 16)

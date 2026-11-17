@@ -9,7 +9,7 @@ header=rpc.call('eth_getBlockByNumber',['latest',False])
 block={'blockHash':header['hash'],'requireCanonical':True}
 records=json.loads((Path(__file__).resolve().parent.parent/'fixtures/deployment.json').read_text())
 implementation='0x'+rpc.call('eth_getStorageAt',[PROXY,IMPLEMENTATION_SLOT,block])[-40:]
-assert implementation==next(r['address'] for r in records if r['name']=='TakerExecutor'),'implementation changed'
+assert implementation.lower()==next(r['address'] for r in records if r['name']=='TakerExecutor').lower(),'implementation changed'
 for record in records:
  code=bytes.fromhex(rpc.call('eth_getCode',[record['address'],block])[2:])
  assert len(code)==record['runtimeBytes'] and hashlib.sha256(code).hexdigest()==record['sha256'],record['name']+' runtime changed'
