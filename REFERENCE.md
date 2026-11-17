@@ -343,8 +343,7 @@ price, `baseFee` the block's base fee, and `tip = gasPrice − baseFee` when
 `gasPrice > baseFee`:
 
 ```text
-s = 1200    if the transaction has already called the AuctionHandler
-            (0xD32EdF6642D917DbBE7B8BF8e5d6F5df6a9FFF58)
+s = 1200    if the AuctionHandler is warm
 else s = 1200   if tip > baseFee and tip − baseFee > floor(baseFee / 2)
 else s = 800    if tip > baseFee
 else s = 600    if tip > floor(baseFee / 2)
@@ -354,6 +353,14 @@ if priceBlock = N and s ≠ 0:   s = s / 4 − 100
 
 cut(x) = floor(x × (1,000,000 − s) / 1,000,000)
 ```
+
+The AuctionHandler (`0xD32EdF6642D917DbBE7B8BF8e5d6F5df6a9FFF58`) is warm if
+the transaction called it earlier or names it in its
+[access list](https://eips.ethereum.org/EIPS/eip-2930). The pool decides this
+once per transaction, at its first swap, by checking that an empty call to the
+AuctionHandler costs less than Monad's
+[cold-access cost](https://docs.monad.xyz/developer-essentials/opcode-pricing#cold-access-cost)
+of 10,100 gas. Every later swap in the transaction uses the same answer.
 
 **The four swaps.** `quoted` and `rawOut` are from the [exact-input
 quote](#exact-input-quote) evaluated at the block the swap executes in.
@@ -375,14 +382,18 @@ sends it `fee`. Each transfer moves `units(t, amount)` of its token, rounded
 down on its own:
 
 ```text
-unitsIn'  = unitsIn  + units(i, amountIn)
-unitsOut' = unitsOut − units(o, out + dust(o)) − units(o, fee)
-received  = amount(i, unitsIn')  − B[i]
-paid      = B[o] − amount(o, unitsOut')
+toRecipient = out + dust(o)   if out > 0, else 0
+unitsIn'    = unitsIn  + units(i, amountIn)
+unitsOut'   = unitsOut − units(o, toRecipient) − units(o, fee)
+received    = amount(i, unitsIn')  − B[i]
+paid        = B[o] − amount(o, unitsOut')
 ```
 
-where `unitsIn` and `unitsOut` are the actual units before the swap. The swap
-reverts if `unitsIn' > 2^128 − 1`, or if it fails the [inventory
+where `unitsIn` and `unitsOut` are the actual units before the swap. `out` is
+zero only in a `swapWithExtraFees` with `extraFeePpm = 1,000,000`: the whole
+output is the fee, and `dust(o)` stays in the pool.
+
+The swap reverts if `unitsIn' > 2^128 − 1`, or if it fails the [inventory
 check](#inventory-check) at the settlement threshold with `received` and
 `paid`. For an xStock the pool also checks that the token moved exactly the
 shares computed here, and reverts with `xstock: multiplier stale` otherwise.
@@ -390,6 +401,10 @@ shares computed here, and reverts with `xstock: multiplier stale` otherwise.
 **State afterwards.** For both tokens the actual units and the recorded units
 equal `unitsIn'` and `unitsOut'`. Nothing else changes. To quote a second swap
 of the same route, apply this change first.
+
+An ERC-7815 swap of zero returns before all of this. It transfers nothing and
+leaves the recorded units as they were, even where they differ from the actual
+units.
 
 ## Exact output
 

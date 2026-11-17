@@ -219,16 +219,25 @@ The effective gas price of an
 `min(maxFeePerGas, baseFee + maxPriorityFeePerGas)`. **Keep the priority fee at
 or below half the base fee and there is no surcharge.**
 
-The pool also applies the highest tier when the transaction has already called
-the FastLane AuctionHandler (`0xD32EdF6642D917DbBE7B8BF8e5d6F5df6a9FFF58`),
-whatever its gas price. An aggregator's transaction does not normally touch
-that contract.
+The pool also applies the highest tier, whatever the gas price, when the
+FastLane AuctionHandler (`0xD32EdF6642D917DbBE7B8BF8e5d6F5df6a9FFF58`) is
+already warm at the pool's first swap of the transaction. It is warm if the
+transaction called it earlier, or if the transaction's
+[access list](https://eips.ethereum.org/EIPS/eip-2930) names it.
 
-Simulate swaps on a Monad node. The pool tells whether the AuctionHandler has
-been called by measuring what a call to it costs, against Monad's
+**Keep the AuctionHandler out of your access list.** An aggregator's
+transaction does not normally call that contract. But the pool touches it to
+make this check, so an access list generated from a swap, for example by
+`eth_createAccessList`, contains its address. Remove that entry before you send
+the transaction.
+
+Simulate swaps on a Monad node. The pool tells whether the AuctionHandler is
+warm by measuring what a call to it costs, against Monad's
 [cold-access cost](https://docs.monad.xyz/developer-essentials/opcode-pricing#cold-access-cost).
 A simulator that charges Ethereum's cost reports the highest tier for every
-swap.
+swap. A Monad node ignores the access list of an `eth_call` that sets
+`gasPrice`; to simulate a transaction with an access list, set `maxFeePerGas`
+and `maxPriorityFeePerGas` instead.
 
 ### Inventory caps
 
@@ -291,20 +300,23 @@ different tokens and are not listed.
    caller.
 5. **Sending a large priority fee.** Above half the base fee, the pool pays
    less. [Surcharge tiers](#execution-surcharge).
-6. **Quoting from old state.** Prices age every block and expire.
+6. **Sending a generated access list unchanged.** It names the AuctionHandler,
+   and the swap then pays the highest surcharge.
+   [Execution surcharge](#execution-surcharge).
+7. **Quoting from old state.** Prices age every block and expire.
    [Price age](#price-age).
-7. **Quoting two swaps of one route against the same state.** The second swap
+8. **Quoting two swaps of one route against the same state.** The second swap
    executes against the inventory the first one left. Quote them in sequence.
-8. **Requiring an exact xStock amount.** Check `received ≥ amountOut`.
+9. **Requiring an exact xStock amount.** Check `received ≥ amountOut`.
    [xStocks](#xstocks).
-9. **Reading `getLimits` as a tradeable size.** Its values are upper bounds;
-   a smaller amount can still be refused. [ERC-7815](#erc-7815-interface).
-10. **Simulating with Ethereum gas rules.** The surcharge comes out wrong.
+10. **Reading `getLimits` as a tradeable size.** Its values are upper bounds;
+    a smaller amount can still be refused. [ERC-7815](#erc-7815-interface).
+11. **Simulating with Ethereum gas rules.** The surcharge comes out wrong.
     [Execution surcharge](#execution-surcharge).
-11. **Setting a loose gas limit.** Monad charges for the
+12. **Setting a loose gas limit.** Monad charges for the
     [gas limit, not the gas used](https://docs.monad.xyz/developer-essentials/gas-pricing#gas-limit-not-gas-used).
     [Gas](#gas).
-12. **Reading the base fee from an `eth_call` without a gas price.** A Monad
+13. **Reading the base fee from an `eth_call` without a gas price.** A Monad
     node reports a base fee of zero to such a call. Pass `gasPrice` when a
     call's result depends on the base fee, as `getPoolData` and any simulated
     swap do.
