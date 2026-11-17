@@ -1,376 +1,528 @@
 # Integrate ThogAMM into an aggregator
 
-ThogAMM swaps ERC-20 tokens from a market maker's inventory on Monad. The maker
-publishes valuations and pricing parameters; the contract uses them together
-with its portfolio holdings to calculate each trade. A quote can therefore
-change when another token's inventory changes, even if neither token in your
-pair has traded.
+ThogAMM is a market-maker pool on Monad. It holds an inventory of tokens and
+swaps any listed token for any other at prices its operator posts on-chain.
 
-An integration needs to discover the supported tokens, quote a trade, fund the
-account calling ThogAMM, and execute the swap with a minimum output. Start with
-the contract calls below. For route searches that need many quotes, the
-[polling and event SDKs](#calculate-quotes-locally) run the pricing model in memory.
+This guide shows how to quote and swap, and how to reproduce the pool's quotes
+in your own router. It assumes you know the EVM and how aggregators work, and
+nothing about ThogAMM.
 
-## Connect to the pool
+## How ThogAMM differs from other pools
 
-| Field | Value |
+- **One pool, every pair.** All listed tokens share one inventory. There are
+  no per-pair pools and no LP tokens.
+- **Prices are posted, not derived from reserves.** The operator posts a USD
+  price for every token, normally every block. A swap pays the posted price
+  less spreads and charges.
+- **Posted prices expire.** A quote gets slightly worse with every block since
+  the last price update, and after a set number of blocks the pool refuses to
+  trade until prices are updated. See [price age](#price-age).
+- **A quote depends on the whole inventory.** The pool charges for the risk a
+  swap adds to its portfolio, so a trade in one pair can move the quote of
+  another.
+- **Execution can pay less than the quote.** A swap sent with a high priority
+  fee receives less. See [execution surcharge](#execution-surcharge).
+- **Some tokens are xStocks**, whose balances are kept in shares. Transfers of
+  them round. See [xStocks](#xstocks).
+
+## The pool
+
+| | |
 | --- | --- |
 | Network | Monad mainnet, chain ID **143** |
-| Pool contract — send all calls here | `0x80c74517BCC2D67fFE02D3ED886796272F647210` |
-| Pool ID — used by discovery and ERC-7815 calls | `0xce389e78282dedac7b18ba7f775b7602d2ab3ab171bbd6711eb0239be6ef4dcc` |
-| Implementation behind the proxy | `0xb108a1daf3c9ba52778b97a15ebdfa3f6f59b506` |
+| Pool contract | `0x80c74517BCC2D67fFE02D3ED886796272F647210` |
+| Pool ID | `0xce389e78282dedac7b18ba7f775b7602d2ab3ab171bbd6711eb0239be6ef4dcc` |
+| Implementation | `0xb108a1daf3c9ba52778b97a15ebdfa3f6f59b506` |
+| ABI | [abi/ThogAMM.json](abi/ThogAMM.json) |
 
-Use the [contract ABI](abi/ThogAMM.json) to encode calls. The implementation
-address identifies the code; send ThogAMM calls to the pool contract. Token
-approvals are calls to the input ERC-20 contract, with the pool as spender.
-For display, use **ThogAMM** and this [logo](https://avatars.githubusercontent.com/u/85769984?v=4).
+Send every call to the pool contract. It is an upgradeable proxy
+([EIP-1967](https://eips.ethereum.org/EIPS/eip-1967)); the implementation
+address is listed so you can tell when the code behind it changes. Display
+name: **ThogAMM**. [Logo](https://avatars.githubusercontent.com/u/85769984?v=4).
 
-`getPoolIds()` returns the pool ID. `getTokens(poolId)` returns its active token
-addresses. The [token table](#listed-tokens) supplies addresses and decimals;
-use discovery for current membership and ordering. Use WMON for native MON
-routes and send zero native value to ThogAMM.
+The pool implements three interfaces:
 
-## Get an exact-input quote
+| Interface | Functions | Use it to |
+| --- | --- | --- |
+| ThogAMM's own | `makerQuoteExactInput`, `makerSwapExactInput`, `swapWithExtraFees` | Quote and swap with a minimum output and a deadline. Start here. |
+| [ERC-7815](https://github.com/ethereum/ERCs/blob/70e96af4539a39ed2bf564ec3559fb45159ff223/ERCS/erc-7815.md) (draft) | `getTokens`, `getLimits`, `getCapabilities`, `price`, `swap` | Discover tokens; swap an exact output amount. See [ERC-7815](#erc-7815-interface). |
+| State | `getPoolData`, `storedMultiplier` | Read everything a local pricing model needs. See [local quotes](#quote-locally). |
 
-All amounts are integers in the token's smallest units. For example, **100 USDC
-is `100_000_000`** because USDC has six decimals. A WETH output uses 18 decimals.
+Every amount in every call is an integer in the token's smallest unit: 100 USDC
+is `100000000` because USDC has six decimals.
+
+## List the tokens
 
 ```solidity
-interface IThogAMM {
-    function makerQuoteExactInput(
-        address tokenIn, address tokenOut, uint256 amountIn
-    ) external view returns (uint256 amountOut, uint256 lastPostedBlock);
-
-    function makerSwapExactInput(
-        address tokenIn, address tokenOut, uint256 amountIn,
-        uint256 minAmountOut, address recipient, uint256 deadlineBlock
-    ) external returns (uint256 amountOut);
-}
+function getPoolIds() external pure returns (bytes32[] memory);
+function getTokens(bytes32 poolId) external view returns (address[] memory);
 ```
 
-With Foundry's `cast` installed, query 100 USDC → WETH:
+`getPoolIds()` returns the single pool ID above and `getTokens(poolId)` returns
+the listed tokens. The list changes when a token is listed or retired, so read
+it rather than hardcoding the [current table](#listed-tokens).
+
+Any listed token can be swapped for any other, but not at every moment: the
+operator can switch a token off as input or as output, and a pair is refused
+while the pool has too little of the output token or too much of the input
+token. Treat a rejected quote as normal, and ask again later.
+
+Native MON is not listed. Wrap it and trade WMON; send no value with a swap.
+
+## Quote
+
+```solidity
+function makerQuoteExactInput(address tokenIn, address tokenOut, uint256 amountIn)
+    external view returns (uint256 amountOut, uint256 lastPostedBlock);
+```
+
+With [Foundry](https://getfoundry.sh)'s `cast`, quote 100 USDC to WETH:
 
 ```sh
-# Set MONAD_RPC to your Monad HTTP RPC URL.
-THOGAMM=0x80c74517BCC2D67fFE02D3ED886796272F647210
-USDC=0x754704Bc059F8C67012fEd69BC8A327a5aafb603
-WETH=0xEE8c0E9f1BFFb4Eb878d8f15f368A02a35481242
-
-cast call "$THOGAMM" \
+cast call 0x80c74517BCC2D67fFE02D3ED886796272F647210 \
   'makerQuoteExactInput(address,address,uint256)(uint256,uint256)' \
-  "$USDC" "$WETH" 100000000 --rpc-url "$MONAD_RPC" --legacy --gas-price 1
+  0x754704Bc059F8C67012fEd69BC8A327a5aafb603 \
+  0xEE8c0E9f1BFFb4Eb878d8f15f368A02a35481242 \
+  100000000 --rpc-url "$MONAD_RPC"
 ```
 
-The first result is raw WETH output. The second is the block in which the maker
-published the prices used by the quote. It is **not a transaction deadline**.
-The call needs no token balance or allowance. It can revert when the pair or
-amount is unavailable. A successful read does not reserve inventory.
+```text
+55017555532321048    amountOut: 0.055 WETH
+123018495            lastPostedBlock: the block of the price update the quote used
+```
 
-This read-only quote includes price-age widening and inventory limits. Settlement
-also applies an execution adjustment determined by the transaction; account for
-it as described in [quotes, limits and settlement](#quotes-limits-and-settlement).
+The call needs no balance or allowance and reserves nothing. It reverts when
+the pool would not make the trade; the [revert reasons](#revert-reasons) say why.
 
-## Construct and execute the swap
+`lastPostedBlock` tells you how old the prices are. It is not a deadline.
 
-Call `makerSwapExactInput` when the input amount is fixed and your router needs
-a recipient, minimum output, and deadline.
+## Swap
+
+```solidity
+function makerSwapExactInput(
+    address tokenIn, address tokenOut, uint256 amountIn,
+    uint256 minAmountOut, address recipient, uint256 deadlineBlock
+) external returns (uint256 amountOut);
+```
 
 | Argument | Meaning |
 | --- | --- |
-| `tokenIn`, `tokenOut` | Addresses from the active registry |
-| `amountIn` | Raw input available to the account that calls ThogAMM |
-| `minAmountOut` | Minimum raw output the recipient must receive, chosen using your route's slippage policy |
-| `recipient` | Nonzero user or router address receiving the output token |
-| `deadlineBlock` | Last block in which the call may execute, inclusive |
+| `amountIn` | Pulled from the caller with `transferFrom`. |
+| `minAmountOut` | The swap reverts if it would pay less. |
+| `recipient` | Receives the output. Must not be the zero address. |
+| `deadlineBlock` | Last **block number** the swap may execute in. |
 
-1. Fund the caller with `amountIn`. If the caller is your router, follow the
-   [funding rules](#funding-through-an-aggregator) below.
-2. From that account, approve the **pool contract** to spend the input token.
-   ThogAMM pulls input with `transferFrom`; do not pre-transfer input to the pool.
-3. Encode the call using the ABI. Set the transaction destination to the pool
-   and native value to zero.
-4. Simulate the complete route with its actual sender, funding, allowances,
-   recipient, minimum output, deadline, and transaction fees. Estimate gas from
-   this route.
-5. Submit the transaction through your router. The call reverts atomically if
-   its deadline, minimum output, transfer, or inventory checks fail.
+1. The caller holds `amountIn` of `tokenIn` and has approved the **pool
+   contract** for it ([ERC-20](https://eips.ethereum.org/EIPS/eip-20)
+   `approve`). Do not transfer tokens to the pool yourself; it pulls them.
+2. Call `makerSwapExactInput` on the pool with no value attached.
+3. The pool pulls the input, sends the output to `recipient`, and returns the
+   amount it guarantees the recipient received.
 
-The return value is the recipient's guaranteed raw output. For tokens that round
-transfers, its actual balance increase can be larger. Check
-`received >= amountOut`. If the router receives output and forwards it, enforce
-the route's minimum on the final recipient's balance increase.
+The swap executes fully or reverts. It never fills partially.
 
-## Funding through an aggregator
+Set `minAmountOut` from a quote made for the block you expect to land in, less
+your slippage tolerance. Three things can make a swap pay less than a quote you
+made earlier: [older prices](#price-age), the [execution
+surcharge](#execution-surcharge), and a price update or another trade landing
+first.
 
-The listed **xStocks** are tokenized equities. Their contracts record balances
-as integer **shares** and use a **multiplier** to convert shares into ERC-20 token
-amounts. The multiplier is scaled by `1e18`:
+## Swap with an integrator fee
 
-```text
-token amount = floor(shares × multiplier / 1e18)
-shares moved by a transfer = floor(token amount × 1e18 / multiplier)
+```solidity
+function swapWithExtraFees(
+    address tokenIn, address tokenOut, uint256 amountIn,
+    uint256 minAmountOut, uint256 expiry, uint256 extraFeePpm, address feeRecipient
+) external returns (uint256 amountOut);
 ```
 
-These floors mean that a requested transfer and the recipient's balance increase
-can differ by a few raw units. Each transfer rounds independently, including
-user → router, router → ThogAMM, and router → final recipient.
+This is the same swap, with a share of the output diverted to you.
 
-If your router first pulls funds from a user, measure only what that transfer
-adds to the router:
+> **Contact us before you use a fee.** `feeRecipient` is not a wallet address.
+> It must be a fee collection contract that we deploy for your integration,
+> where your fees accrue until they are paid out to you. To have one set up,
+> [open an issue](https://github.com/thogard785/thog-amm-integration-guide/issues/new)
+> in this repository. A swap with a nonzero fee and any other recipient reverts.
+
+**`extraFeePpm` is in parts per million of the output**, not basis points:
+
+| `extraFeePpm` | Fee |
+| ---: | --- |
+| `1` | 0.0001% (0.01 bp) |
+| `100` | 0.01% (1 bp) |
+| `1000` | 0.1% (10 bp) |
+| `10000` | 1% |
+| `1000000` | 100%, the maximum |
+
+To convert, multiply basis points by 100. Passing `30` charges 0.003%, not
+0.30%; a 0.30% fee is `3000`.
 
 ```text
-before = tokenIn.balanceOf(router)
-transferFrom(user, router, requestedAmount)
-amountIn = tokenIn.balanceOf(router) - before
+fee       = floor(output × extraFeePpm / 1,000,000)
+amountOut = output − fee
 ```
 
-Use this `amountIn` for the ThogAMM leg. During route construction, simulate the
-funding transfer to determine it; during execution, measure it. Do not include
-funds the router held before this trade. Refund residual input through the
-router's normal refund mechanism.
+Here `output` is what `makerSwapExactInput` would have returned for the same
+swap in the same transaction. The fee is paid in `tokenOut`.
 
-The contract and SDK execution quotes include the rounding for ThogAMM's own
-transfers and provide the output guarantee described above. Do not subtract an
-additional rounding allowance from that guarantee. Sending output directly to
-the final recipient avoids a forwarding transfer.
+It differs from `makerSwapExactInput` in three more ways:
 
-## Quotes, limits and settlement
+- The output goes to the **caller**. There is no `recipient` argument.
+- `expiry` is a **Unix timestamp in seconds**, not a block number.
+- `minAmountOut` and the returned `amountOut` are **after** the fee.
 
-**Price age.** The pool stores a price publication block, a maximum age, and a
-spread increase per elapsed block. Quotes use the requested evaluation block:
-older prices widen the spread, and prices beyond the configured maximum age
-are unavailable. Read these parameters from pool state. Keeping a snapshot in
-memory does not stop its prices from aging.
+With `extraFeePpm` of zero there is no fee and `feeRecipient` is ignored.
 
-**Execution adjustment.** Settlement can reduce output according to the
-transaction's effective gas price, the block's base fee, whether prices were
-published in that block, and whether the FastLane AuctionHandler account is
-warm. An account is warm when the transaction has already accessed it or included
-it in its access list. The AuctionHandler address is
-`0xD32EdF6642D917DbBE7B8BF8e5d6F5df6a9FFF58`.
+Before sending the fee, the pool calls two functions on the fee contract, with
+gas limits of 150,000 and 25,000; allow for them in your gas limit. To simulate
+a fee swap before your fee contract exists, give `feeRecipient` any code that
+accepts every call, using an `eth_call` state override.
 
-For EIP-1559, effective gas price is
-`min(maxFeePerGas, baseFee + maxPriorityFeePerGas)`. Supply the intended transaction
-fees when simulating settlement. For state reads, use `gasPrice: 0x1` so Monad
-RPC preserves the block's base fee. The [integer reference](REFERENCE.md#exact-output-marginal-prices-and-settlement)
-specifies the execution adjustment and its rounding.
+## What changes the output
 
-**Inventory limits.** Read-only quotes apply 90% thresholds to configured
-inventory caps. Settlement checks full caps using actual transfer deltas.
-`getLimits(poolId, tokenIn, tokenOut)` returns `[sellLimit, buyLimit]` in raw input
-and output units respectively. These are separate upper bounds; an amount below
-a limit must also satisfy the quote's price, direction, and portfolio checks.
+### Price age
 
-A quote models one trade against one state. Independently quoting two trades
-against that state does not model their sequential execution. If a route visits
-ThogAMM more than once, simulate the complete route so each visit sees the effects
-of the preceding visits.
+The pool stores the block of its latest price update, a maximum age, and a
+spread added per block of age. At the time of writing the maximum age is 15
+blocks and each block of age adds 0.5 bp; both are pool parameters and can
+change.
 
-## Calculate quotes locally
+```text
+age = block the swap executes in − block of the latest price update
+```
 
-Both Rust SDKs calculate quotes without network calls. Use **SDK 0.6.1** with
-the deployment listed above; Rust 1.88 or later is required.
+A swap at age 3 pays about 1.5 bp less than at age 0. Once the age exceeds the
+maximum, every quote and swap reverts with `maker: stale` until prices are
+updated.
 
-| SDK | How it obtains state |
+State held in memory ages too. If you quote from a cached copy of the pool,
+evaluate it at the block you expect to trade in, and stop using it once it is
+older than you can tolerate. A pool whose prices have moved since you read it
+will quote amounts the chain no longer pays.
+
+### Execution surcharge
+
+When a swap executes, the pool reduces the output by a surcharge that depends
+on how far the transaction's gas price is above the block's base fee. The
+read-only quote does not include it.
+
+| Effective gas price | Surcharge | If prices were updated in the same block |
+| --- | ---: | ---: |
+| At most 1.5 × base fee | none | none |
+| Above 1.5 × base fee | 6 bp | 0.5 bp |
+| Above 2 × base fee | 8 bp | 1 bp |
+| Above 2.5 × base fee | 12 bp | 2 bp |
+
+The effective gas price of an
+[EIP-1559](https://eips.ethereum.org/EIPS/eip-1559) transaction is
+`min(maxFeePerGas, baseFee + maxPriorityFeePerGas)`. **Keep the priority fee at
+or below half the base fee and there is no surcharge.**
+
+The pool also applies the highest tier when the transaction has already called
+the FastLane AuctionHandler (`0xD32EdF6642D917DbBE7B8BF8e5d6F5df6a9FFF58`),
+whatever its gas price. An aggregator's transaction does not normally touch
+that contract.
+
+Simulate swaps on a Monad node. The pool tells whether the AuctionHandler has
+been called by measuring what a call to it costs, against Monad's
+[cold-access cost](https://docs.monad.xyz/developer-essentials/opcode-pricing#cold-access-cost).
+A simulator that charges Ethereum's cost reports the highest tier for every
+swap.
+
+### Inventory caps
+
+The pool caps how much of each token it will hold, and how much of each
+**category**: a group of tokens that track the same asset, such as USDC, AUSD
+and USDT0. A swap that would take a holding over its cap reverts with
+`maker: balance`. It also reverts if the pool does not hold enough of the
+output token.
+
+`makerQuoteExactInput` checks against 90% of each cap, so that a swap quoted
+near a cap still fits when it executes.
+
+## xStocks
+
+The xStocks in the [token list](#listed-tokens) are tokenized equities. Their
+contracts keep balances in **shares** and convert shares to token amounts with
+a **multiplier** that changes on dividends and splits; xStocks documents this
+in [How xStocks Handles Dividends & Stock Splits](https://docs.xstocks.fi/developers/multipliers).
+Three consequences matter to a router.
+
+**Transfers round.** A transfer of `amount` moves a whole number of shares, so
+the recipient's balance can rise by a few raw units less than `amount`. The
+pool allows for this on its own transfers: it sends slightly more than it
+promises, and its return value is a floor on what the recipient receives, not
+the exact figure.
+
+```text
+received ≥ amountOut          correct check for an xStock output
+received == amountOut         can fail
+```
+
+**Your own transfers round too.** If your router pulls an xStock from the user
+before swapping, swap the amount the router actually received, measured as its
+balance change, not the amount it asked for. The same holds if the router
+forwards an xStock output to the user: check the user's balance change against
+your minimum. Sending the output straight to the user avoids that extra
+transfer.
+
+**The pool prices with its own stored multiplier.** It copies each xStock's
+multiplier from the issuer when anyone calls `syncMultipliers(address[])`, and
+uses the stored value until the next call. If an issuer's multiplier has
+changed and the stored one has not yet been synced, swaps of that xStock revert
+with `xstock: multiplier stale`. Read the stored value with
+`storedMultiplier(token)` on the pool; it is zero for a token that is not an
+xStock.
+
+The pool lists the unwrapped xStocks. Their
+[wrapped forms](https://docs.xstocks.fi/developers/wrapped-xstocks) are
+different tokens and are not listed.
+
+## Common pitfalls
+
+1. **Treating `extraFeePpm` as basis points.** It is parts per million.
+   [Scale table](#swap-with-an-integrator-fee).
+2. **Using a wallet as `feeRecipient`.** It must be the fee contract we set up
+   for you. [Contact us first](#swap-with-an-integrator-fee).
+3. **Mixing up the two deadlines.** `makerSwapExactInput` takes a block number;
+   `swapWithExtraFees` takes a Unix timestamp.
+4. **Expecting the fee swap to pay a recipient.** `swapWithExtraFees` pays the
+   caller.
+5. **Sending a large priority fee.** Above half the base fee, the pool pays
+   less. [Surcharge tiers](#execution-surcharge).
+6. **Quoting from old state.** Prices age every block and expire.
+   [Price age](#price-age).
+7. **Quoting two swaps of one route against the same state.** The second swap
+   executes against the inventory the first one left. Quote them in sequence.
+8. **Requiring an exact xStock amount.** Check `received ≥ amountOut`.
+   [xStocks](#xstocks).
+9. **Reading `getLimits` as a tradeable size.** Its values are upper bounds;
+   a smaller amount can still be refused. [ERC-7815](#erc-7815-interface).
+10. **Simulating with Ethereum gas rules.** The surcharge comes out wrong.
+    [Execution surcharge](#execution-surcharge).
+11. **Setting a loose gas limit.** Monad charges for the
+    [gas limit, not the gas used](https://docs.monad.xyz/developer-essentials/gas-pricing#gas-limit-not-gas-used).
+    [Gas](#gas).
+12. **Reading the base fee from an `eth_call` without a gas price.** A Monad
+    node reports a base fee of zero to such a call. Pass `gasPrice` when a
+    call's result depends on the base fee, as `getPoolData` and any simulated
+    swap do.
+
+## Quote locally
+
+Calling the contract for every quote is too slow for route search. Two Rust
+SDKs reproduce the pool's arithmetic in memory, to the last raw unit:
+
+| SDK | Keeps state current by |
 | --- | --- |
-| [Polling SDK](https://github.com/thogard785/thog-amm-poll-sdk) | Reads a complete snapshot over HTTP on each refresh |
-| [Event SDK](https://github.com/thogard785/thog-amm-event-sdk) | Loads one snapshot, then applies complete finalized blocks from a Monad WebSocket subscription |
+| [Polling SDK](https://github.com/thogard785/thog-amm-poll-sdk) | Reading the pool over HTTP, one request per refresh |
+| [Event SDK](https://github.com/thogard785/thog-amm-event-sdk) | Reading the pool once, then applying logs from a Monad WebSocket subscription |
 
-A minimal Cargo manifest for the polling SDK is:
+Both give you a `Pool`. Its methods have the names of the contract calls they
+reproduce and return the same numbers:
+
+| Contract call | SDK |
+| --- | --- |
+| `makerQuoteExactInput` | `pair.maker_quote_exact_input(amount_in)` |
+| `makerSwapExactInput` | `pair.maker_swap_exact_input(amount_in, tx)` |
+| `swapWithExtraFees` | `pair.swap_with_extra_fees(amount_in, extra_fee_ppm, tx)` |
+| ERC-7815 `swap`, sell side | `pair.swap_sell(amount_in, tx)` |
+| ERC-7815 `swap`, buy side | `pair.swap_buy(amount_out, tx)` |
+| ERC-7815 `price` | `pair.price(amount_in)` |
+| ERC-7815 `getLimits` | `pair.get_limits()` |
 
 ```toml
-[package]
-name = "thogamm-adapter"
-version = "0.1.0"
-edition = "2024"
-rust-version = "1.88"
-
 [dependencies]
-state-poll-sdk = { git = "https://github.com/thogard785/thog-amm-poll-sdk", tag = "v0.6.1" }
+thogamm-poll = { git = "https://github.com/thogard785/thog-amm-poll-sdk", tag = "v0.7.0" }
 tokio = { version = "1", features = ["macros", "rt-multi-thread"] }
 ```
 
-Edition 2024 uses Cargo resolver 3. For an application in an existing workspace,
-set `resolver = "3"` at the workspace root and declare the application's
-`rust-version`. Commit `Cargo.lock` to keep dependency versions reproducible.
-
-Save this as `src/main.rs`. It reads the pool and prints an execution quote for
-100 USDC → WETH; it does not submit a transaction. Set `MONAD_RPC` and
-`EFFECTIVE_GAS_PRICE_WEI` to your endpoint and intended effective gas price in wei,
-then run `cargo run --release`.
-
 ```rust
-use state_poll_sdk::{Config, StatePollSdk, U256};
+//! Read the pool once and price 100 USDC -> WETH three ways.
+//!
+//!     MONAD_RPC=https://rpc.monad.xyz cargo run --example quote
+use thogamm_poll::{Poller, TxContext, U256};
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let rpc = std::env::var("MONAD_RPC")?;
-    let gas_price: U256 = std::env::var("EFFECTIVE_GAS_PRICE_WEI")?.parse()?;
-    let proxy = "0x80c74517BCC2D67fFE02D3ED886796272F647210".parse()?;
+    let pool_address = "0x80c74517BCC2D67fFE02D3ED886796272F647210".parse()?;
     let usdc = "0x754704Bc059F8C67012fEd69BC8A327a5aafb603".parse()?;
     let weth = "0xEE8c0E9f1BFFb4Eb878d8f15f368A02a35481242".parse()?;
+    let amount_in = U256::from(100_000_000u64); // 100 USDC, six decimals
 
-    let sdk = StatePollSdk::connect(rpc, proxy, Config::default()).await?;
-    let model = sdk.model();
-    let quote = model.quote_execution_exact_input(
-        usdc, weth, U256::from(100_000_000u64), gas_price,
-    )?;
-    println!("block={} amount_out={}", model.state().block.number, quote.amount_out);
+    let poller = Poller::connect(rpc, pool_address).await?;
+    let read = poller.pool();
+    println!("read at block {}", read.snapshot().block.number);
+
+    // Price the swap in the block it should land in, not the block that was read.
+    let pool = read.at_block(read.block_number() + 1, read.base_fee())?;
+    let pair = pool.pair(usdc, weth)?;
+
+    // What makerQuoteExactInput returns.
+    let quote = pair.maker_quote_exact_input(amount_in)?;
+    println!("quote:          {} wei WETH", quote.amount_out);
+
+    // What makerSwapExactInput pays in a transaction with a 10% priority fee.
+    let tx = TxContext::with_gas_price(pool.base_fee() * U256::from(11) / U256::from(10));
+    let swap = pair.maker_swap_exact_input(amount_in, tx)?;
+    println!(
+        "swap:           {} wei WETH (surcharge {} x 0.01 bp)",
+        swap.amount_out, swap.surcharge
+    );
+
+    // What swapWithExtraFees pays with a 0.10% integrator fee: 1,000 parts per million.
+    let with_fee = pair.swap_with_extra_fees(amount_in, 1_000, tx)?;
+    println!(
+        "swap with fee:  {} wei WETH to the caller, {} to the fee recipient",
+        with_fee.amount_out, with_fee.fee
+    );
     Ok(())
 }
 ```
 
-In your aggregator, keep the client for subsequent quotes. With a mutable client,
-`refresh()` reads immediately; `next_update()` waits for the configured interval,
-500 ms by default, then reads. A [runnable polling example](https://github.com/thogard785/thog-amm-poll-sdk/blob/v0.6.1/examples/poll.rs)
-and [event subscription example](https://github.com/thogard785/thog-amm-event-sdk/blob/v0.6.1/examples/subscribe.rs)
-show application setup and environment variables.
+`pool.pair(a, b)` prepares one direction; reuse it for every amount you try.
+`pool.after(&swap)` gives the pool as that swap would leave it, for the next
+swap of the same route. A quote that the pool would refuse returns an error
+that names the [revert reason](#revert-reasons).
 
-| Method on `sdk.model()` | Result |
+To write your own model in another language, the [reference](REFERENCE.md)
+specifies the state, the arithmetic and the events, and the SDK's
+[`model`](https://github.com/thogard785/thog-amm-poll-sdk/tree/main/model/src)
+crate is a working implementation of it.
+
+### Reading state yourself
+
+One `eth_call` returns everything, from a single block:
+
+- `getPoolData(0, 28)` on the pool: the token list, the pool's balance of each
+  token, its native MON balance, and the storage words that hold prices and
+  parameters.
+- `storedMultiplier(token)` on the pool, for every token. Nonzero means the
+  token is an xStock.
+- `sharesOf(pool)` on each xStock.
+
+Batch them through [Multicall3](https://www.multicall3.com) so that all three
+come from the same block, and pass `gasPrice` so that the pool data carries the
+real base fee. The reference lists the [exact
+calls](REFERENCE.md#reading-a-snapshot).
+
+### Following state from events
+
+Every change to the pool's state emits a log, so a model can advance block by
+block without reading the chain again. The reference gives the [log filters and
+the rule for each event](REFERENCE.md#keeping-state-current-from-events). Two
+points decide whether this works:
+
+- Apply only **finalized** blocks, each with **all** of its logs, in order.
+  Monad's `monadNewHeads` subscription reports each block's
+  [commit state](https://docs.monad.xyz/reference/json-rpc/overview#websocket-subscriptions).
+- On any gap, on a pool upgrade, or when a token is listed or retired, discard
+  the model and read the state again.
+
+## ERC-7815 interface
+
+The pool follows the [ERC-7815 draft at this
+revision](https://github.com/ethereum/ERCs/blob/70e96af4539a39ed2bf564ec3559fb45159ff223/ERCS/erc-7815.md).
+The draft was not merged into the ERCs repository, so pin that revision.
+
+| Function | Behaviour |
 | --- | --- |
-| `quote_exact_input(in, out, amount)` | Matches the read-only contract quote |
-| `quote_execution_exact_input(in, out, amount, gasPrice)` | Models direct `makerSwapExactInput` settlement |
-| `quote_exact_output(in, out, target, gasPrice)` | Required input for an ERC-7815 Buy |
-| `limits(in, out)` | Separate sell and buy upper bounds |
-| `marginal_price(in, out, amount)` | Fraction of raw output units per raw input unit at that size |
+| `getTokens(poolId)` | The listed tokens. |
+| `getCapabilities(poolId, sell, buy)` | `SellOrder`, `BuyOrder`, `PriceFunction`, `MarginalPrice`. |
+| `getLimits(poolId, sell, buy)` | `[sellLimit, buyLimit]`: the largest input and the largest output, in raw units. Each is an upper bound on its own; an amount below both can still be refused. For a token without a cap, `sellLimit` is an arithmetic bound far above anything the pool can pay for. |
+| `price(poolId, sell, buy, amounts)` | For each amount, the price of the next unit after selling that amount, as a fraction of raw output units per raw input unit. It is a marginal price, not the average price of the trade. |
+| `swap(poolId, sell, buy, side, amount)` | `side = 0` sells exactly `amount` of `sell`; `side = 1` buys exactly `amount` of `buy`. Returns `(calculatedAmount, gasUsed, marginalPriceAfterTrade)`. |
+| `priceDerivative`, `swapToPrice` | Not implemented; they revert. |
 
-Execution methods assume a cold AuctionHandler and no integrator fee. The
-`*_with_context` variants take `auction_handler_warm` as their final argument.
-`model.at_block(number, baseFee)` evaluates age and execution fees at a chosen
-block while holding the snapshot's inventory, prices, and parameters fixed; it
-does not fetch or predict intervening state changes.
+`swap` is a real swap. It pulls input from the caller and sends output to the
+caller, even in an `eth_call`, so the simulated caller needs a balance and an
+allowance. It has no minimum output, maximum input or deadline: the contract
+that calls it must enforce those.
 
-For several sizes of the same pair, call `model.prepare(tokenIn, tokenOut)` once
-and quote the returned pair. Rebuild it after a state update. Keep the snapshot's
-`model.state().block.number` and `.hash` with quotes so the router knows which
-state they used. A refresh or stream error leaves the last snapshot in memory;
-handle the error and obtain current state before serving it as a fresh quote.
+Use `swap` with `side = 1` when you need an exact output amount. For exact
+input, prefer `makerSwapExactInput`, which has the protections built in.
 
-## Read a complete snapshot
+## Revert reasons
 
-This section is for a custom reader or a pricing model in another language. The
-SDKs perform these reads for you.
+| Revert | Meaning | What to do |
+| --- | --- | --- |
+| `maker: stale` | Prices are older than the maximum age. | Retry after the next price update. |
+| `maker: paused` | The operator has paused the pool. | Skip the pool for now. |
+| `maker: side off` | The input token is not being accepted, or the output token is not being paid out. | Skip the pair for now. |
+| `maker: unknown token` | A token is not listed, or both tokens are the same. | Refresh the token list. |
+| `maker: zero fill` | The amount is too small to produce any output. | Use a larger amount. |
+| `MakerAmountTooLarge(limit)` | The amount is above the arithmetic limit. | Use a smaller amount. |
+| `maker: balance` | Not enough output inventory, or a cap would be exceeded. | Use a smaller amount or another pair. |
+| `maker: min out` | The output is below `minAmountOut`. | Requote. |
+| `maker: deadline`, `maker: expired` | Past `deadlineBlock` or `expiry`. | Resend with a later deadline. |
+| `maker: recipient` | `recipient` is the zero address. | |
+| `maker: extra fee` | `extraFeePpm` is above 1,000,000. | |
+| `maker: fee recipient`, `MakerFeeTokenSetupFailed()`, `MakerFeeConfirmationFailed()` | `feeRecipient` is not a fee contract set up for this pool. | [Contact us](#swap-with-an-integrator-fee). |
+| `xstock: multiplier stale` | An xStock's multiplier changed and has not been synced. | Call `syncMultipliers`, or retry later. |
+| `TRANSFER_FROM_FAILED` | The caller lacks the input balance or the allowance. | |
+| `maker: risk uninitialized`, `maker: spread`, `maker: migration required` | The pool's parameters are being set up or changed. | Skip the pool for now. |
 
-1. Read a block header and select its hash.
-2. At that hash, call `getPoolData(0, 28)`. Decode the returned token metadata,
-   category metadata, logical storage words, physical balances, and native MON
-   balance using the ABI. Check the returned block number and parent hash against
-   the header. The parent hash is not the selected block's hash.
-3. For every listed xStock, read `sharesOf(proxy)` on the **token contract** and
-   `storedMultiplier(token)` on the **ThogAMM pool**, at the same block hash. The
-   pool getter returns a single `uint256`.
-4. Build the quote model from this complete state, including tokens outside the
-   requested pair. Validate schema 8, wire format 8, model 3, and the active
-   registry using the [integer reference](REFERENCE.md).
+The ERC-7815 functions report the same conditions as
+`Unavailable(string reason)` and `LimitExceeded(uint256 limit)`.
 
-ThogAMM uses its stored multiplier to value xStock shares. This value belongs to
-the pool's pricing state; an issuer's current multiplier or `balanceOf(proxy)`
-is not a substitute. The pool's `syncMultipliers` operation records a multiplier
-and emits `MakerMultiplierUpdated`. Settlement checks that each stock transfer
-moves the shares implied by the stored multiplier; a mismatch reverts with
-`xstock: multiplier stale`.
+## Gas
 
-## Maintain state from events
+`eth_estimateGas` for `makerSwapExactInput` called directly by an account, at
+block 123,024,098:
 
-The event SDK subscribes to `logs` and `monadNewHeads`, loads a snapshot at a
-finalized block hash, and publishes a model after each complete finalized block.
-Use one ordered Monad subscription connection. Include all commitment stages so
-the SDK can determine when each block's log stream is complete; generic Ethereum
-`newHeads` does not provide that ordering information.
+| Swap | Gas |
+| --- | ---: |
+| WMON to WETH | 436,567 |
+| WMON to USDC | 456,853 |
+| WMON to an xStock | 504,517 |
 
-Apply xStock `TransferShares` events to physical shares and
-`MakerMultiplierUpdated` to the pool's conversion value. The accompanying ERC-20
-`Transfer` event must not apply the same stock movement a second time. Policy,
-inventory, lending/perpetual exposure, WMON, and native-balance checkpoints are
-also quote inputs. The [event rules](REFERENCE.md#snapshot-and-event-synchronization)
-cover their ordering and accounting.
-
-Advance the evaluation block even when there are no relevant logs. If the SDK reports a
-stream disconnect or synchronization error, reconnect and load a complete snapshot. A
-registry change requires a snapshot and rebuilt prepared pairs. An implementation
-change requires checking that the chosen model supports that implementation.
-Forced native transfers can lack logs; a custom reader needs account-state data
-or a fresh snapshot to include them.
-
-## Other settlement interfaces
-
-### Collect an integrator fee
-
-`swapWithExtraFees(tokenIn, tokenOut, amountIn, minAmountOut, expiry,
-extraFeePpm, feeRecipient)` sends net output to **the caller**. `expiry` is an
-inclusive Unix timestamp. The fee is
-`floor(grossOutput × extraFeePpm / 1_000_000)`, with `extraFeePpm` in `0..1_000_000`.
-`minAmountOut` protects net
-output after that fee. SDK quotes exclude this integrator fee; simulate this
-specific call when using it.
-
-For a nonzero fee, `feeRecipient` must be a collection contract implementing:
-
-```solidity
-interface IFeeFundHolder {
-    function checkSetFeeToken(address feeToken) external;
-    function confirmFee(
-        address feeToken, uint256 feeTokenAmount, uint256 feeUsdValueWad
-    ) external;
-}
-```
-
-ThogAMM calls these methods before transferring the fee, with gas limits of
-150,000 and 25,000 respectively. `feeUsdValueWad` is the fee's USD value scaled
-by `1e18`. A failed callback reverts the swap.
-
-### ERC-7815 Sell and Buy
-
-`swap(poolId, sellToken, buyToken, side, specifiedAmount)` pulls tokens from the
-caller and sends output back to that caller. `side=0` is Sell: the specified
-amount is input and `Trade.calculatedAmount` is output. `side=1` is Buy: the
-specified amount is the output guarantee and `Trade.calculatedAmount` is required
-input. The [ABI](abi/ThogAMM.json) includes the complete `Trade` return structure.
-
-This call performs settlement even under `eth_call`, so the simulated caller
-needs funds and allowance. It has no minimum-output, maximum-input, or deadline
-argument. Your enclosing router must enforce those protections. Direct swap and
-ERC-7815 rounding differ; use the [exact settlement rules](REFERENCE.md#exact-output-marginal-prices-and-settlement)
-for a custom model.
-
-`price` returns marginal prices for its requested input sizes, not average
-execution prices. `priceDerivative` and `swapToPrice` are unsupported.
+A swap between two tokens of the same category, such as USDC to AUSD, costs
+less because it skips the portfolio risk calculation. An integrator fee adds two
+calls and a transfer. Measure your own route, and set the limit tightly: Monad
+charges for the
+[gas limit, not the gas used](https://docs.monad.xyz/developer-essentials/gas-pricing#gas-limit-not-gas-used).
 
 ## Listed tokens
 
-The deployment has the following 17 tokens. Read `getTokens(poolId)` to confirm
-current membership. The nine xStocks below are unwrapped tokens; their wrapped
-counterparts are separate assets. Fee-on-transfer tokens are unsupported.
+The list at the time of writing. Read `getTokens(poolId)` for the current one.
 
-| Token | Address | Decimals |
-| --- | --- | ---: |
-| USDC | `0x754704Bc059F8C67012fEd69BC8A327a5aafb603` | 6 |
-| AUSD | `0x00000000eFE302BEAA2b3e6e1b18d08D69a9012a` | 6 |
-| USDT0 | `0xe7cd86e13AC4309349F30B3435a9d337750fC82D` | 6 |
-| WMON | `0x3bd359C1119dA7Da1D913D1C4D2B7c461115433A` | 18 |
-| WETH | `0xEE8c0E9f1BFFb4Eb878d8f15f368A02a35481242` | 18 |
-| WBTC | `0x0555E30da8f98308EdB960aa94C0Db47230d2B9c` | 8 |
-| cbBTC | `0xd18B7EC58Cdf4876f6AFebd3Ed1730e4Ce10414b` | 8 |
-| XAUt0 | `0x01bFF41798a0BcF287b996046Ca68b395DbC1071` | 6 |
-| SPYx | `0x90a2a4c76b5d8c0bc892a69ea28aa775a8f2dd48` | 18 |
-| QQQx | `0xa753a7395cae905cd615da0b82a53e0560f250af` | 18 |
-| EWYx | `0x299c95eb52bfd5bc98d924bce17197b64864589b` | 18 |
-| NVDAx | `0xc845b2894dbddd03858fd2d643b4ef725fe0849d` | 18 |
-| TSLAx | `0x8ad3c73f833d3f9a523ab01476625f269aeb7cf0` | 18 |
-| SMHx | `0x8d512a03600981b8e86556fd5c0fbdd726fe1821` | 18 |
-| SPCXx | `0x68fa48b1c2fe52b3d776e1953e0e782b5044ce28` | 18 |
-| MUx | `0xf6a873bae4ba1b304e45df52a4b7d176e1c6a8c4` | 18 |
-| SKHYx | `0x58100046a4afcd4ee4fadbd4244f3f895a341c56` | 18 |
+| Token | Address | Decimals | Kind |
+| --- | --- | ---: | --- |
+| USDC | `0x754704Bc059F8C67012fEd69BC8A327a5aafb603` | 6 | |
+| AUSD | `0x00000000eFE302BEAA2b3e6e1b18d08D69a9012a` | 6 | |
+| USDT0 | `0xe7cd86e13AC4309349F30B3435a9d337750fC82D` | 6 | |
+| WMON | `0x3bd359C1119dA7Da1D913D1C4D2B7c461115433A` | 18 | |
+| WETH | `0xEE8c0E9f1BFFb4Eb878d8f15f368A02a35481242` | 18 | |
+| WBTC | `0x0555E30da8f98308EdB960aa94C0Db47230d2B9c` | 8 | |
+| cbBTC | `0xd18B7EC58Cdf4876f6AFebd3Ed1730e4Ce10414b` | 8 | |
+| XAUt0 | `0x01bFF41798a0BcF287b996046Ca68b395DbC1071` | 6 | |
+| SPYx | `0x90A2a4c76b5D8c0bc892A69EA28Aa775a8f2dD48` | 18 | xStock |
+| QQQx | `0xa753A7395cAe905Cd615Da0B82A53E0560f250af` | 18 | xStock |
+| EWYx | `0x299c95Eb52BFd5Bc98d924bCE17197b64864589B` | 18 | xStock |
+| NVDAx | `0xc845b2894dBddd03858fd2D643B4eF725fE0849d` | 18 | xStock |
+| TSLAx | `0x8aD3c73F833d3F9A523aB01476625F269aEB7Cf0` | 18 | xStock |
+| SMHx | `0x8D512a03600981B8e86556fd5C0FbDd726Fe1821` | 18 | xStock |
+| SPCXx | `0x68fa48B1C2FE52b3D776E1953e0E782b5044Ce28` | 18 | xStock |
+| MUx | `0xf6a873BAe4Ba1B304e45dF52A4b7D176E1C6a8c4` | 18 | xStock |
+| SKHYx | `0x58100046a4Afcd4eE4faDbD4244f3f895a341c56` | 18 | xStock |
 
+Tokens that charge a fee on transfer are not supported and are not listed.
 
-## Verify the adapter
+## Verify your integration
 
-Compare quote outputs against contract calls at the same block, with the same
-input amounts and execution fees. Check exact integer outputs and agreement on
-which requests revert. Test both directions for each supported pair, xStock
-funding and output rounding, price-age expiry, and routes with multiple visits
-to the pool.
+Compare your quotes with the contract at the same block. Results must be equal
+to the last raw unit, and a request the contract reverts must be rejected by
+your model too. Do not allow a tolerance: a model that is off by one unit is
+using different arithmetic and will be off by more elsewhere.
 
-The [verification guide](verification/README.md) provides captured contract
-results, SDK test commands, and capture scripts. The [integer reference](REFERENCE.md)
-defines the arithmetic and event rules for a custom implementation.
+[verification/README.md](verification/README.md) has recorded contract results
+to test against and the commands that reproduce them. Before going live, also
+check, by simulation on a Monad node:
+
+- both directions of every pair you route, at small and large sizes;
+- a swap at each [surcharge tier](#execution-surcharge);
+- an xStock as input and as output, through your router's own transfers;
+- a fee swap, comparing the fee with `extraFeePpm`;
+- a route that visits the pool twice;
+- a quote from state that is one block short of expiring, and one block past it.

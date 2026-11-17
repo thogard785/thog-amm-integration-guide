@@ -1,470 +1,553 @@
-# ThogAMM integer quote reference
+# ThogAMM reference
 
-Use this specification to implement ThogAMM's pricing model and state decoder.
-The [integration guide](THOGAMM_AGGREGATOR_INTEGRATION.md) explains contract calls,
-token funding, and SDK setup. This reference defines the arithmetic needed to
-reproduce those calls exactly.
+Everything needed to reproduce ThogAMM's quotes and swaps outside the chain:
+what state to read, how it is laid out, the arithmetic, and how to keep the
+state current. The [integration guide](THOGAMM_AGGREGATOR_INTEGRATION.md)
+explains how to use the pool; this document specifies it.
 
-The deployment in that guide uses snapshot schema **8**, publication wire format
-**8**, and pricing model **3**. Decode calls and events with the
-[contract ABI](abi/ThogAMM.json). The
-[shared Rust model](https://github.com/thogard785/thog-amm-poll-sdk/tree/v0.6.1/model)
-is an executable implementation. Match the model to the proxy's implementation;
-the format identifiers alone do not identify contract bytecode.
+A working implementation of this document is the
+[`model` crate](https://github.com/thogard785/thog-amm-poll-sdk/tree/main/model/src)
+of the Rust SDK. Its files follow the sections below: `layout.rs`,
+`snapshot.rs`, `curve.rs`, `pool.rs`, `events.rs`.
 
-Amounts, prices, fees, and risk calculations use integer arithmetic. Preserve
-the division order, rounding direction, and overflow checks in each formula.
-The [snapshot procedure](THOGAMM_AGGREGATOR_INTEGRATION.md#read-a-complete-snapshot)
-explains how to obtain all inputs from one block.
+## Conventions
 
-Storage uses `1 << 255` as a nonzero encoding for empty words. Inventory
-words 107–120 use the separate bitmap in slot 121: bit `wordSlot-107` equal
-to one means the decoded inventory word is zero. A zero bitmap bit means
-read the physical word verbatim, including `1 << 255`. For other slots,
-the complete word `1 << 255` decodes to zero. This preserves all 128 bits
-of both balances. `getPoolData` returns decoded logical words.
-Do not apply physical-marker decoding to its returned values.
+- All values are integers. `floor(a / b)` and `ceil(a / b)` divide unsigned
+  integers. `trunc(a / b)` divides signed integers and rounds toward zero.
+- A product inside one division is computed in full before dividing, even
+  when it exceeds 256 bits. Where a result does not fit 256 bits, or a
+  subtraction would go below zero, the contract reverts.
+- **USD** amounts are scaled by `1e18`.
+- **Spreads** and the **surcharge** are in units of 0.01 bp: `1,000,000` is 100%.
+- Token amounts are raw units. `scale(t) = 10^decimals(t)`.
+- Tokens are numbered in listing order from zero. Each token belongs to one
+  **category**: a group of tokens that track the same asset, such as USDC,
+  AUSD and USDT0. Categories are numbered from zero.
+- Bit offsets count from the least significant bit of a 256-bit word.
 
-## Snapshot and event synchronization
+## Reading a snapshot
 
-1. Call `getPoolData(0, 28)` at one pinned block hash. Check `schemaVersion == 8`,
-   active counts in `1..28`, and the registry metadata. Decode the returned
-   `StorageWord[]` by its explicit slot numbers. Verify layout 8, wire 8 and model 3
-   in slot 8 bits 160–215, and require its registry generation to be nonzero. The returned page covers slots 2–127; maker quotes use slots 2–121. `portfolioBalances` contains **all** registered token balances even
-   if metadata pagination is used. `nativeBalance` is separate. Bind the returned
-   block number and parent hash to the selected RPC header; the parent hash is
-   not the current block hash.
-2. Keep policy, prices, native balance, physical token balances and accounted
-   token balances at the same block and transaction position. Accounted balances
-   are the `uint128` fields in words 107–120. `portfolioBalances` supplies physical
-   balances used to preview the two endpoints' reconciliation. A policy event
-   alone does not update either balance set.
-   Transfers, taker execution, owner transfers, loans and native bid payments
-   can change a quote without a maker swap. A reader without a complete
-   balance-event mirror must obtain another atomic snapshot or call the quote.
-3. `MakerPageUpdated(uint8 indexed lane, bytes payload, uint256 control)` supplies
-   the exact included payload and resulting control word. Lanes are price=1,
-   risk=2, wrapper=4, inventory caps=8. Apply in block/log order, modify only that
-   lane's fields, and verify the resulting control against the event. A
-   disagreement requires an authoritative snapshot; it is not permission to
-   substitute locally desired policy.
-4. `MakerLendingExposureUpdated(uint8 indexed venue, uint8 indexed category,
-   uint32 sequence, int64 offset)` supplies the absolute category offset and
-   exposure sequence after a borrow, repayment, perpetual fill or position sync.
-   Venue 0 is Neverland, 1 is Euler and 2 is Perpl; the venue is informational.
-   Replace the category's signed low 64 bits and slot 7 bits 160–191. The sequence
-   advances by one per exposure update. A gap requires a snapshot.
-   `PerplTradeExecuted`, `PerplSynced`, `PerplConfigured` and
-   `PerplCollateralMoved` require no additional quote-state updates. Do not
-   count their position changes again after applying the exposure event.
-5. `MakerTokenAdded` and `MakerTokenRetired` change registry membership, ordering,
-   or dimensions. Load a complete snapshot and rebuild the model and prepared
-   pairs for the resulting registry.
-   `MakerTokenAdded` has the expanded bid/ask, volume-rate and inventory-cap
-   metadata tuple; derive its signature from the current ABI.
-   It does not carry the covariance/pair rows, so the listing event alone cannot
-   reconstruct the expanded page.
-6. On a reorg, discard affected event positions and reload the replacement
-   fork. A snapshot covers events through its block; begin replay after that
-   block so those changes are not applied twice.
-7. `Paused(bool)` sets maker pause bit 132. Apply ERC-20 and WMON balance
-   movements exactly once, with `MakerWmonBalanceCheckpoint` and
-   `NativeBalanceCheckpoint` as absolute replacements at their log positions.
-   `MakerSwapExecuted.amountOut` is the actual output debit, including fees
-   (a self-payment contributes zero); when consuming transfers,
-   do not also apply swap/fee accounting events as balance deltas.
-   `MakerInventoryUpdated(uint8 indexed index, address indexed token, uint128 balance)`
-   replaces the accounted units absolutely (shares for xStocks); verify its index/address binding.
-   Recompute the corresponding slot-121 zero bit if maintaining exact word parity.
-   For ordinary tokens, `Transfer` changes physical balances only. For xStocks,
-   apply `TransferShares` to physical shares and ignore the accompanying nominal
-   `Transfer`. Apply `MakerMultiplierUpdated` to the executor-stored multiplier;
-   an issuer activation alone does not change that stored value. Never apply a swap
-   delta to the accounted ledger in addition to its absolute checkpoint.
-   `MakerWrapperCostApplied` is accounting only. Complete the transaction before
-   publishing a quote state, especially for loans and wrap/unwrap operations.
-8. Forced native transfers and nonstandard token balance changes can lack logs.
-   Obtain execution/account-state changes or an atomic snapshot where needed;
-   ordinary event subscriptions alone cannot guarantee those balances.
-   Advance the quote block even when a block has no relevant events.
+A snapshot is the pool's complete state at one block. Read it with a single
+`eth_call` to [Multicall3](https://www.multicall3.com)
+(`0xcA11bde05977b3631167028862bE2a173976CA11`), `aggregate3`, with these calls:
 
-`MakerInventoryUpdated(uint8,address,uint128)` is an absolute per-token
-checkpoint. Decode each publication using the ABI and wire format declared by
-the snapshot, and reject an unsupported format.
-
-Before quote execution, the layout identifier must be 8, maker pause must be false,
-prices must be enabled, structural and wrapper readiness must be set. Both endpoint sides must be enabled.
-The posting block must be nonzero and no later than the quote block, with age
-at most `maxAge`. Identical/unknown endpoints are rejected.
-
-## Word addressing
-
-Words use ordinary 32-byte big-endian ABI serialization. Offsets below count
-bits from the least significant bit. Signed packed fields use two's complement.
-Every unused tail field in a publication must be zero. Token addresses are
-compiled constants and must be taken from the same atomic snapshot’s complete
-`tokens` metadata, rather than decoded from storage words. Three 75-bit records
-share each token word; bits 225–255 are reserved.
-
-| Slot/field | Encoding |
-| --- | --- |
-| 2 bits 0–7 | Physical layout version (8) |
-| 2 bits 8–13 / 14–19 | Token/category counts |
-| 2 bits 20–35 / 36–67 | Price sequence / posting block |
-| 2 bits 68–131 | Two side bits per token: bid at `2*i`, ask at `2*i+1` |
-| 2 bits 132–135 | Maker paused, price enabled, risk ready, wrapper ready |
-| 2 bits 136–137 | Reserved |
-| 2 bits 138–145 / 146–161 | Maximum age / widening per block |
-| 2 bits 162–193 | Lambda, scaled by `1e6` |
-| 2 bits 194–255 | Reserved |
-| `9+i/3`, offset `75*(i%3)` + 0–4 | Compiled catalog ID (no stored address) |
-| Same record, bits 5–9 / 10–14 | Decimals / category |
-| Same record, bits 15–30 / 43–58 | Token bid / ask width in 0.01 bp units |
-| Same record, bits 31–32 / 33–42 | Wrapper kind / refund permille |
-| Same record, bits 59–74 | Nonzero input volume rate, 0.01 bp per $1,000 |
-| 19, offset `6*catalogId`, width 6 | Active token index + 1; zero means inactive |
-| `20+i/4`, field `i%4` of 64 bits | Encoded price |
-| `27+c/3`, field `c%3` of 85 bits | External/target offset `int64`, category width `uint16`, anchor token index `uint5` |
-| `37+j/16`, field `j%16` of 16 bits | Signed covariance coefficient, scaled by `1e9` |
-| `63+j/16`, field `j%16` of 16 bits | Unordered pair width, 0.01 bp units |
-| `87+i/4`, field `i%4` of 64 bits | Wrapper coefficient, scaled by `1e18` |
-| `94+c/4`, field `c%4` of 64 bits | Category target USD, scaled by `1e6` |
-| 7 bits 160–191 | Lending sequence |
-| 8 bits 160–167 / 168–175 / 176–183 | Physical layout / publication wire / quote model identifiers: 8 / 8 / 3 |
-| 8 bits 184–215 | Nonzero registry generation |
-| `101+i/10`, offset `24*(i%10)` | Token inventory cap in raw ERC-20 units, packed mantissa/shift |
-| `104+c/10`, offset `24*(c%10)` | Category inventory cap in USD-wad, packed mantissa/shift |
-| `107+i/2`, offset `128*(i%2)` | Accounted units: xStock shares or ordinary raw amounts, unsigned 128-bit |
-| 121 bits 0–13 | Inventory zero-encoding bitmap; see above |
-| 122 | Perpl venue/account configuration; snapshot only; not replayed or read by maker quotes |
-| 123–126 | Perpl market configuration; snapshot only; not replayed or read by maker quotes |
-| 127 | Perpl positions; snapshot only; not replayed or read by maker quotes |
-| `128+k/2`, offset `128*(k%2)` | Stored xStock multiplier keyed by compiled catalog ID, uint128; outside the 126-word page, read with `storedMultiplier(token)` |
-
-Masked writes preserve bits outside their owning fields, including category
-and token-policy spare bits. Price, covariance, pair, coefficient and target
-publications replace complete array words and require clean unused tails.
-A future wire or model revision need not move the physical layout.
-
-For covariance, sort category indices `a <= b` and use `j=b*(b+1)/2+a`.
-
-The publisher verifies that the source covariance is positive semidefinite.
-It rounds off-diagonal coefficients to the nearest `1e-9` tick and rounds each
-diagonal upward after adding the sum of the actual off-diagonal rounding errors
-in that row. The encoding error matrix is symmetric diagonally dominant with
-nonnegative diagonal, so the encoded covariance remains positive semidefinite.
-Off-diagonal error is at most half a tick; diagonal error is less than
-`1 + (categoryCount - 1)/2` ticks. Already encoded matrices round-trip exactly.
-This corrects representation error only; it has no inventory or fill dependency.
-For pair widths, sort distinct token indices `a < b` and use `j=b*(b-1)/2+a`.
-These rules include the original tokens and every appended token equally.
-
-A price field stores mantissa `m` in bits 0–55 and exponent `e` in bits 56–63:
-`lower = m * 10^(18-e)`, `upper = (m+1) * 10^(18-e)` in USD-wad.
-Valid fields have `m >= 2,000,000` and `e <= 18`. Input prices and inventory
-valuation use `lower`; the output conversion uses `upper`. Use integer powers
-of ten. Each endpoint interval is at most 0.005 bp; the combined ratio error
-is below 0.01 bp.
-
-A cap field uses a 16-bit unsigned mantissa and an 8-bit binary shift:
-`value = mantissa << shift`. `0xffffff` decodes to `uint256.max`; it remains
-a numeric cap and never disables a check. Other encodings require `shift <= 240`
-and either `shift == 0` or `mantissa >= 32768`. Encode a finite amount by
-`shift = max(0, floor(log2(amount)) - 15)` and `mantissa = amount >> shift`.
-Encoding rounds down, with relative error below `1/32768` for nonzero shifted
-values. Zero is an actual zero cap. Ten fields occupy each storage word; unused
-tail and high bits remain reserved. Prices never rescale a token cap.
-
-## Publications
-
-The first word is a header; remaining words contain the arrays below. Field
-groups are concatenated in the stated order, with each group beginning at a
-new word. Counts and generation refer to the current registry; every automatic publication must match the generation stored in slot 8 bits 184–215.
-
-| Lane | Header offsets | Array groups |
+| Call | Target | May fail |
 | --- | --- | --- |
-| Price | sequence 0:16; enabled 16:1; sides 17:64; tokens 81:8; version 89:8; registry generation 97:32 | Prices: 4 × 64-bit fields/word |
-| Risk | version 0:8; tokens 8:8; categories 16:8; lambda 24:32; max age 56:8; widening 64:16; reserved zero 80:32; lending sequence 112:32; registry generation 144:32 | Category policies: 3 × 85-bit; covariance triangle: 16 × 16-bit; token policies: 5 × 48-bit (bid 0:16, ask 16:16, volume rate 32:16; high 16 word bits zero); learned pair premiums: 16 × 16-bit |
-| Wrapper | version 0:8; tokens 8:8; categories 16:8; reserved zero 24:8; registry generation 32:32 | 3 × 76-bit fields: coefficient 0:64, kind 64:2, refund 66:10; category USD targets: 4 × 64-bit |
+| `getPoolData(0, 28)` | pool | no |
+| `storedMultiplier(token)` for each listed token | pool | no |
+| `sharesOf(pool)` for each listed token | the token | yes |
 
+`storedMultiplier` returns zero for an ordinary token and the multiplier for an
+xStock. Use a token's `sharesOf` result only when its multiplier is nonzero;
+ordinary tokens revert or return nothing. The token list comes from
+`getTokens(poolId)` or an earlier snapshot. If the tokens in the returned pool
+data differ from the list you asked about, read again with the returned list.
 
-The existing price nonce uses uint16 ordering: zero is invalid; from a nonzero
-previous nonce, the modular forward distance must be 1–15. Its posting block is
-assigned at inclusion. Risk, wrapper and cap writes are idempotent parameter setters,
-with no additional publication counters. Risk and wrapper reserved header fields must be zero.
-The publisher serializes parameter updates using its existing transaction and
-confirmation machinery. A risk publication's lending sequence must equal slot 7 bits 160–191.
-No lane publishes physical executor balances. Manual cap updates use
-`setInventoryCaps(address[],uint256[],uint8[],uint256[])`: token addresses and
-raw limits, then category IDs and USD-wei limits. It changes only those entries,
-has no header or freshness input, and emits lane 8 with the ABI-encoded arrays
-of requested limits. Reproduce the downward cap encoding before updating the
-24-bit stored fields; preserve unspecified entries and apply duplicates in
-order. The cap setter does not change control or readiness; bits 136–137 are
-reserved. Read initial cap values from the complete snapshot, then apply each
-lane-8 event exactly once. See [inventory limits](THOGAMM_AGGREGATOR_INTEGRATION.md#quotes-limits-and-settlement)
-for their effect on quotes and settlement.
+Send the `eth_call` with `gasPrice` set, for example `0x1`. Without it a Monad
+node reports a base fee of zero, and `baseFeePerGas` in the result is wrong.
 
-Wrapper kind 0 is none, 1 fixed, 2 sliding. None requires zero coefficient and
-refund. Fixed requires a coefficient below `1e18` and zero refund. Sliding
-allows refund at most 1000 and requires a nonzero category target; a zero
-coefficient produces zero friction. Configured active sliding policies use a
-positive coefficient. Structural publication preserves wrapper
-metadata and category USD targets; wrapper publication changes its policy and targets atomically and preserves token widths and learned pair premiums.
+`getPoolData` returns:
 
-## Wrapper inventory and donation timing
+| Field | Use |
+| --- | --- |
+| `schemaVersion` | Must be 8. |
+| `blockNumber`, `baseFeePerGas`, `parentBlockHash` | The block the snapshot was read at. |
+| `tokens[i].token` | The listed tokens in order. The other fields of each entry say where that token's values are stored; they match the [state layout](#state-layout). |
+| `balances[i]` | The pool's balance of token `i`. For an xStock this is `floor(shares × multiplier / 1e18)` with the stored multiplier. |
+| `nativeBalance` | The pool's native MON balance. |
+| `words` | Storage words 2 to 127 as `(slot, value)` pairs. |
 
-Unwrapped xStocks use shares in words 107–120 and inventory events. Value them
-at `floor(shares * storedMultiplier / 1e18)`, where `storedMultiplier` is read
-from the executor's `storedMultiplier(token)` getter for that stock. Quotes and
-settlement use this stored value; they do not call the issuer's multiplier
-getter. `syncMultipliers` copies the issuer's value into the pool and emits
-`MakerMultiplierUpdated` without changing accounted shares.
+Read storage through `getPoolData`, not `eth_getStorageAt`: the contract keeps
+empty words in an encoded form that `getPoolData` decodes.
 
-Read physical `sharesOf(proxy)` and the stored multiplier at the same block hash
-as the page. Never reconstruct shares from rounded `balanceOf`. Include every
-listed stock because its valuation can affect the portfolio risk of other pairs.
-A listed stock requires a nonzero stored multiplier.
+Check the snapshot before using it:
 
-Each maker transfer moves
-`floor(amount * 1e18 / storedMultiplier)` shares, including separate recipient
-and fee transfers. Settlement reads physical shares immediately before and after
-each transfer and checks that they changed by exactly this amount. A mismatch
-reverts with `xstock: multiplier stale`. Accounted shares are updated by the
-verified share movement. Zero shares value to zero. Ordinary tokens use raw
-ERC-20 units for balances and transfer events.
+- slot 2 bits 0–7 equal 8, and slot 8 bits 160–183 equal `8 | 8 << 8 | 3 << 16`
+  (see [format](#format-and-upgrades));
+- the token and category counts in slot 2 match the returned arrays;
+- for every xStock, `floor(shares × multiplier / 1e18)` equals its balance.
+  A mismatch means the reads came from different blocks.
 
-For a quote on `i -> o`, form the raw holdings vector `B` by taking the physical
-snapshot balance for `i` and `o`, and the stored accounted balance for every
-other wrapper, converting xStock accounted shares with the stored multiplier. Native MON stays live and is added only when valuing WMON's
-category. Use this same vector for covariance risk, wrapper friction, output
-capacity and cap checks. View calls preview reconciliation without writing it.
+## State layout
 
-A successful maker settlement first stores the two physical endpoint balances,
-then applies the operation's own input receipt and actual output debits, including
-integrator fees. Each changed balance emits an absolute checkpoint. Existing
-donations enter before pricing and cannot be mistaken for swap proceeds.
-Donations during token or fee callbacks remain outside the ledger until that
-wrapper's next reconciliation. No post-transfer balance synchronization occurs.
+`slot` is the storage word. Arrays pack equal-width fields from the low bits
+upward; "`n` per word" means field `k` is at word `first + floor(k / n)`, bit
+offset `(k mod n) × width`.
 
-Taker execution assumes no mid-swap donations. Pool legs and WMON wrapping mark
-touched wrappers in a transient bitmap. Once all venue callbacks and settlements
-finish, each touched wrapper's final physical balance is read and checkpointed
-once, including partial-input and intermediate residue. Reverted attempts roll
-back their touched-token bits. Owner withdrawals and Neverland/Euler cash
-movements update the same ledger; subsequent FastLane bid funding checkpoints
-its own WMON debit. Native MON is never stored as a second wrapper balance.
-Reverting pool/route probes omit ledger accounting. Temporary flash principal
-is never classified as a donation: Balancer funding is repaid inside its unlock,
-and V2/V3/V4 flash quotes revert the whole funding frame with their result.
-Neither funding path checkpoints the temporarily borrowed balance. The complete
-`quoteExecute` simulation executes settlement accounting before reverting.
-Price, risk and wrapper publications cannot overwrite the ledger.
+**Slot 2: counts, switches and pool-wide parameters**
 
-Stored units (xStock shares or ordinary raw amounts) must fit `uint128` whenever admitted or changed; overflow reverts rather
-than truncating. This mechanism assumes the listed tokens' supported exact
-transfer semantics. Unrelated physical donations do not affect a quote until
-that wrapper becomes an endpoint or another tracked operation reconciles it.
-There is no persistent category-balance cache: each valuation uses current
-prices and each wrapper's own decimals with the rounding below.
+| Bits | Field |
+| --- | --- |
+| 0–7 | Storage layout version: 8 |
+| 8–13, 14–19 | Token count, category count |
+| 20–35 | Price update counter |
+| 36–67 | `priceBlock`: block of the latest price update |
+| 68–131 | Two switches per token: bit `68 + 2i` lets token `i` be input, bit `69 + 2i` lets it be output |
+| 132 | Paused |
+| 133 | Prices enabled |
+| 134, 135 | Parameters published: risk, token costs |
+| 138–145 | `maxPriceAge` in blocks |
+| 146–161 | `spreadPerBlock`, in 0.01 bp |
+| 162–193 | `riskAversion`, scaled by 1e6 |
 
-## Exact input
+**Other slots**
 
-Let `floor(a/b)` denote unsigned integer division, `ceil(a/b)` its upward
-counterpart, and `trunc(a/b)` signed division toward zero. Products described
-with full precision must use mul-div arithmetic, not overflowing uint256
-intermediates. The reference implementations specify the arithmetic domain.
+| Slots | Layout | Field |
+| --- | --- | --- |
+| 7, bits 160–191 | | Counter of category offset changes |
+| 8, bits 160–183 | | Format identifiers; see [format](#format-and-upgrades) |
+| 8, bits 184–215 | | Registry generation: increases when a token is listed or retired |
+| 9–18 | 75 bits, 3 per word | Token record, below |
+| 19 | 6 bits, 32 per word | For each entry of the contract's built-in address table: the token's listing position plus one, or zero if it is not listed |
+| 20–26 | 64 bits, 4 per word | Token [price](#prices) |
+| 27–36 | 85 bits, 3 per word | Category record, below |
+| 37–62 | 16 bits, 16 per word | Covariance between categories `a ≤ b`, signed, scaled by 1e9, at field `b (b + 1) / 2 + a` |
+| 63–86 | 16 bits, 16 per word | Extra spread for the token pair `a < b`, at field `b (b − 1) / 2 + a` |
+| 87–93 | 64 bits, 4 per word | Token cost coefficient, scaled by 1e18 |
+| 94–100 | 64 bits, 4 per word | Category target holding in USD, scaled by 1e6 |
+| 101–103 | 24 bits, 10 per word | Token [cap](#caps), raw units |
+| 104–106 | 24 bits, 10 per word | Category cap, USD scaled by 1e18 |
+| 107–120 | 128 bits, 2 per word | Recorded units per token: raw units, or shares for an xStock |
+| 121 | bit `w` | Set while word `107 + w` is zero |
+| 122–127 | | The operator's own account configuration. Not a pricing input. |
 
-For input token `i`, output token `o`, and categories `a`, `b`:
+**Token record** (75 bits)
 
-The default age widening is 50 units (0.5 bp) per elapsed block. The publisher
-encodes the configured value in the risk lane; models read the stored value.
+| Bits | Field |
+| --- | --- |
+| 0–4 | Index in the contract's built-in address table |
+| 5–9, 10–14 | Decimals, category |
+| 15–30 | `spreadIn`: spread when the token is input |
+| 31–32 | Token cost kind: 0 none, 1 fixed, 2 inventory-based |
+| 33–42 | `refund`: share of an inventory-based cost credited on the way out, in 1/1000 |
+| 43–58 | `spreadOut`: spread when the token is output |
+| 59–74 | `sizeRate`: size charge when the token is input, in 0.01 bp per $1,000 |
 
-1. Add both category widths, the input token’s bid width, the output token’s ask width, the learned pair premium, and `age * widening` into `spread`. Require `spread < 1e6`.
-2. Set `d[c] = covariance[a,c] - covariance[b,c]` and
-   `v = covariance[a,a] + covariance[b,b] - 2*covariance[a,b]`.
-3. For each category with `d[c] != 0`, start exposure USD-wad at
-   `trunc(externalOffsetMicro[c] * anchorPriceLower[c] / 1e6)`.
-   Add `floor(rawBalance[t] * priceLower[t] / 10^decimals[t])` for every
-   registered token in that category, using the reconciled vector `B` above. Add native balance to WMON's raw balance
-   before valuation. Positive external collateral excluded by policy is not
-   silently reintroduced as spendable inventory.
-4. Set `g = sum_c trunc(exposureUSD[c] * d[c] / 1e9)`, preserving the
-   **per-category** division order. For `a == b`, both `v` and `g` are zero.
-   This removes category risk only; volume and wrapper costs below still apply.
-5. For an unwrapped xStock, set `inputDust = max(2, ceil(storedMultiplier / 1e18))`;
-   for an ordinary token, use zero. Compute
-   `n = floor(max(0, amountIn - inputDust) * priceInLower / inputScale)`
-   and `available = floor(n * (1e6-spread) / 1e6)`.
-   Set `linear = sign(g) * floor(n * abs(g) / 5e17)` and
-   `delta = trunc(n*n*v / 1e27) + linear`.
-   The inventory charge is `penalty = floor(max(delta,0) * lambdaQ / 1e6)`.
-6. Read `r = volumeRateUnits[inputToken]` and charge
-   `volumeCost = ceil(r * n*n / 1e27)` USD-wad. This term is outside the
-   positive-risk clamp and applies to every maker swap, including same-category
-   and risk-reducing directions, with or without wrapper friction.
-   Its marginal slope in Q36 units is exactly `2 * r * n * 1e9`.
+**Category record** (85 bits)
 
-For a sliding endpoint, let `I` be its own actual ERC-20 inventory in USD-wad
-using the lower price, and let `T = categoryTargetMicroUSD * 1e12`.
-The input coefficient is `kIn = ceil(coefficientWad * 1e36 / T)`.
-The output coefficient is
-`kOut = floor(coefficientWad * refundPermille * 1e36 / (T*1000))`.
-Wrapper inventory does not include native MON. The coefficient already encodes
-configured target friction divided by target weight.
+| Bits | Field |
+| --- | --- |
+| 0–63 | `offset`: signed. A position the operator holds outside the pool, in millionths of the reference token |
+| 64–79 | `categorySpread` |
+| 80–84 | Reference token: the token whose price values `offset` |
 
-Entry cost is zero for no friction,
-`ceil(n * fixedRateWad / 1e18)` for fixed friction, or
-`ceil(kIn * n * (2*I+n) / (2e54))` for sliding friction.
-If inventory penalty, volume cost or entry cost exhausts available funds, output
-is zero. Otherwise `budget = available - penalty - volumeCost - entry`.
-The volume integral starts at zero for each swap. Splitting a trade reduces this
-term; no transaction history or rolling-volume accumulator is maintained. The
-stateful inventory and sliding-wrapper potentials retain their own integration
-properties. `MakerSwapExecuted.inventoryPenaltyUsdWad` reports the inventory penalty;
-volume cost is a separate component in the exact quote model.
+### Prices
 
-For no output friction, `outputUSD=budget`. For fixed output friction,
-`outputUSD=floor(budget*1e18/(1e18+fixedRateWad))`.
-For sliding output friction, solve the largest admitted integer `y` satisfying
-`y - floor(kOut * z * (2*I-z) / (2e54)) <= budget`, where `z=min(y,I)`:
+A price field holds a mantissa `m` in bits 0–55 and an exponent `e` in bits
+56–63. The price of one whole token lies between
 
-- Require `kOut == 0` or `kOut*I < 1e54`; this is the positive marginal-value
-  domain of the invertible curve. If `kOut==0`, use `budget`.
-- Let `credit=floor(kOut*I*I/(2e54))`. If `budget >= I-credit`, use
-  `outputUSD=budget+credit`.
-- Otherwise set `b=1e54-kOut*I`, and compute the **ceiling** integer square root
-  of `b*b+2e54*kOut*budget` without discarding the high bits of the discriminant.
-  The initial output is `floor(2e54*budget/(b+root))`. Test the adjacent integer
-  against the exact integral and increment once if it also fits. The Solidity
-  implementation uses exact 512-bit division for the root.
+```text
+priceLow  = m × 10^(18 − e)
+priceHigh = (m + 1) × 10^(18 − e)
+```
 
-Finally compute `rawOut = floor(outputUSD * outputScale / priceOutUpper)` and
-`outputDust = max(2, ceil(storedOutputMultiplier / 1e18))` for an xStock, zero otherwise.
-Here `storedOutputMultiplier` is the pool's stored multiplier for the output stock.
-The read-only output is `max(0, rawOut - outputDust)`. Direct
-`makerSwapExactInput` applies any execution widening to this value. ERC-7815
-instead applies widening to `rawOut`, then subtracts `outputDust`. Preserve this
-order: the two paths can differ by a raw unit. Settlement adds output dust to
-any nonzero recipient payment before converting that transfer to shares.
-Do not round a wrapper credit upward. The recipient's guaranteed amount can be
-smaller than the actual rounded receipt.
-The arithmetic input limit is derived from the signed quadratic range. Public
-quotes also apply the inventory rules below after computing exact output.
+in USD scaled by 1e18. The pool values what it receives and holds at
+`priceLow`, and what it pays at `priceHigh`. A field with `m < 2,000,000` or
+`e > 18` is not a price; both values are zero.
 
-The exit credit can pay above oracle fair value. That is the configured
-inventory-reduction incentive, not an unconditional mark-to-oracle profit
-guarantee. The same configured policy is used by the taker friction coster.
+### Caps
 
-## Exact output, marginal prices and settlement
+A cap field holds a mantissa in bits 0–15 and a shift in bits 16–23:
+`cap = mantissa << shift`. The value `0xffffff` means no cap (`2^256 − 1`).
+To encode an amount as the contract does, rounding down: `shift = max(0,
+bitLength(amount) − 16)` and `mantissa = amount >> shift`.
 
-The exact-output solver evaluates the same integer curve. It brackets the
-requested output, checks the rising-branch peak if marginal remaining budget
-reaches zero, then bisects for the **smallest raw input** attaining the output.
-The executable reference is `solveExactOutput`; a rounded inverse fair price
-or a floating-point quadratic does not guarantee minimum input.
-For ERC-7815 Buy, settlement sets the guaranteed output to the requested target,
-then adds output dust before transferring an xStock. Actual recipient credit can
-exceed that target. The SDK's execution `Quote.amount_out` is this guarantee, not
-an exact balance delta: compare `received >= amount_out` under the same state and
-execution context. Funding/forwarding transfers outside Thog round independently;
-use the caller's measured newly received input and measure the final recipient.
+### Format and upgrades
 
-Marginal prices use `remainingSlopeQ36` and `penaltySlopeWad`, including the
-positive-risk clamp's one-sided derivative and the input volume slope above. They divide by the remaining
-output marginal value (including the wrapper refund) and convert token units
-with the endpoint price ratio. `marginalPrice` returns an integer fraction;
-copy its operation and rounding order for bit-exact results. `HardLimits` is
-not advertised: every pair has positive volume curvature. The sell limit is
-bounded by the arithmetic range and receiving-token quote cap, and is zero
-when no output inventory is available. The independent buy limit is the actual
-output balance minus output dust, floored at zero. These are upper bounds; the exact quote still enforces category
-caps and the nonlinear curve. `priceDerivative` and
-`swapToPrice` revert with `NotImplemented` and are not advertised capabilities.
+Slot 8 bits 160–167, 168–175 and 176–183 identify the storage layout (8), the
+format of update payloads (8) and the pricing arithmetic (3). This document
+describes exactly that combination. Refuse any other.
 
-Quote functions omit execution defense but include stored age widening.
+The pool is an upgradeable proxy. An upgrade emits `Upgraded(address)` and can
+change behaviour without changing the identifiers, so on that event stop
+quoting until you have checked the new implementation against your model.
 
-Execution applies a dynamic output reduction. Evaluate the following rows in
-order using the transaction's **effective** gas price and the current block's
-base fee; every gas-price comparison is strictly greater-than.
+## Balances
 
-| First matching condition | Raw defense | Defense after a valuation update earlier in this block |
-| --- | ---: | ---: |
-| FastLane AuctionHandler is already warm | 12 bp | 2 bp |
-| `gasPrice > 2.5 * baseFee` | 12 bp | 2 bp |
-| `gasPrice > 2 * baseFee` | 8 bp | 1 bp |
-| `gasPrice > 1.5 * baseFee` | 6 bp | 0.5 bp |
-| Otherwise | 0 bp | 0 bp |
+A swap from token `i` to token `o` uses one balance per token:
 
-The same-block column applies exactly when the latest accepted valuation's
-`postedBlock` equals the execution block: `max(rawDefense / 4 - 1 bp, 0)`.
-A risk, wrapper, cap or inventory update alone does not qualify. The raw defense
-applies when the latest valuation is from an earlier block. Warmth and gas-price
-triggers do not stack. With zero base fee, any positive gas price selects 12 bp;
-a cold zero-price transaction selects zero. Fractional thresholds are exact,
-including odd base fees; implementations compare differences to avoid overflow.
+```text
+B[t] = actual balance of t          for t = i and t = o
+B[t] = recorded balance of t        for every other token
+```
 
-The configured age widening is **0.5 bp per elapsed block** without a valuation
-update (`widen_per_block_bps: 0.50`, encoded as 50 in 0.01 bp units). It adds to
-the pair's spread and affects both read-only and execution quotes. Execution
-defense is a separate multiplicative output reduction, not another age term.
+The actual balance is `balances[t]` from the snapshot. The recorded balance is
+the token's recorded units from slots 107–120: raw units for an ordinary
+token, `floor(units × multiplier / 1e18)` for an xStock. The two differ when
+tokens reached the pool without a swap.
 
-The SDK's default execution methods assume a cold AuctionHandler; the
-`*_with_context` methods accept explicit warmth. For EIP-1559, effective gas price
-is `min(maxFeePerGas, baseFee + maxPriorityFeePerGas)`. `at_block(number, base_fee)`
-sets both age and the block/base-fee context used by this policy; it cannot predict
-an intervening valuation publication, trade or inventory change.
+An xStock's own unit is the share. `units(t, amount) = floor(amount × 1e18 /
+multiplier)` and `amount(t, units) = floor(units × multiplier / 1e18)`. For an
+ordinary token both are the identity.
 
-Carry the selected defense in **0.01 bp units** (`friction`), with raw values
-0/600/800/1200 and same-block values 0/50/100/200. The output factor is
-`(1_000_000 - friction) / 1_000_000`. Direct and extra-fee swaps use
-`floor(readOnlyAmountOut * (1_000_000 - friction) / 1_000_000)`;
-ERC-7815 Sell/Buy use
-`max(0, floor(rawOut * (1_000_000 - friction) / 1_000_000) - outputDust)`.
-Apply the same factor to ERC-7815's returned marginal-price numerator.
-Exact-output execution solves that ERC-7815 curve for minimum input. Its initial
-bracket includes both output and input dust; its independent buy limit is
-physical output balance minus dust.
-Marginal remaining slope uses `max(0, amountIn - inputDust)` for input notional.
-Integrator fees are deducted before checking the caller's minimum output, and
-each recipient/fee transfer independently floors to shares. Simulate the actual
-call with the same state, effective gas price and account warmth.
+An xStock transfer can deliver slightly less than the amount requested. The
+pool's allowance for that is
 
-The final contract call is authoritative. A mirror's exactness depends on its
-complete state and transaction context; matching a quote at an earlier block
-does not guarantee the same output at inclusion.
+```text
+dust(t) = max(2, ceil(multiplier / 1e18))     for an xStock
+dust(t) = 0                                   otherwise
+```
 
-## Inventory admission and final settlement
+Where the pool values holdings in USD it counts its native MON as WMON:
 
-Capture the reconciled holdings vector before transfers. Read-only admission
-adds nominal `amountIn` to the input wrapper and uses `amountOut + outputDust`
-for nonzero output. Settlement instead computes each share transfer, updates
-the starting physical shares, and values the actual input receipt/output debit
-from the difference in pre/post amounts. For the input category, sum
-`floor(held[t] * priceLower[t] / 10^decimals[t])` over its registered wrappers.
-Start from `B`, add the input receipt, and subtract the actual output debit when
-the output belongs to the same category. Include live native MON with WMON before
-valuation. Debt, target offsets and lending collateral never reduce these gross
-holdings. Singleton categories use the same calculation.
+```text
+usd(t, x) = floor(x × priceLow[t] / scale(t))
+held(t)   = B[t] + nativeBalance      if t is WMON
+held(t)   = B[t]                      otherwise
+```
 
-For a configured cap `C > 0`, the ordinary quote threshold is
-`Q(C) = ceil(C * 90 / 100) - 1`; `Q(0) = 0`. Use full-precision arithmetic,
-including for `uint256.max`. Final settlement uses the full configured cap `C`.
-The 90% quote threshold governs quote availability; a quote does not reserve
-inventory.
+## Exact-input quote
 
-Reconciliation, a price change, a taker fill or a manual cap reduction can place
-existing holdings over a threshold. Preserve that starting balance. For either
-quote or settlement, the effective limit is `max(startingHolding, threshold)`;
-for the receiving wrapper also clamp it to the nominal value of `uint128.max` stored units. For xStocks this is `floor(uint128.max * storedMultiplier / 1e18)`; for other tokens it is `uint128.max`. Thus an operation may
-reduce an existing category excess but cannot increase it. Configured caps do
-not change when excess holdings are admitted. The outgoing wrapper's cap never
-prevents selling it down.
+For input token `i` in category `a`, output token `o` in category `b`, at
+block `N`.
 
-Maker settlement applies the full-cap check to its captured starting state plus
-actual trade deltas after all transfers and fee callbacks complete. A callback
-donation does not become a trade receipt or alter the cap baseline. Exceeding
-an effective limit reverts with `maker: balance` and rolls back the whole swap.
-The Go `QuotePageExactInput` uses the identical endpoint-reconciliation and
-quote-threshold rules. ERC-7815 executable swaps and their `eth_call` simulations
-use the final full-cap rule. Taker execution does not enforce maker caps.
+**1. Availability.** The quote is refused, in this order, if:
+
+- `i = o`, or either token is not listed;
+- the actual units of `i` or `o` exceed `2^128 − 1`;
+- the pool is paused or prices are not enabled;
+- either "parameters published" bit is clear;
+- `i` is switched off as input, or `o` as output;
+- `priceBlock` is zero or above `N`, `maxPriceAge` is zero, or
+  `N − priceBlock > maxPriceAge`;
+- `priceLow[i]` or `priceHigh[o]` is zero.
+
+**2. Spread.**
+
+```text
+spread = spreadIn[i] + spreadOut[o] + categorySpread[a] + categorySpread[b]
+       + pairSpread[i, o] + (N − priceBlock) × spreadPerBlock
+```
+
+Refused if `spread ≥ 1,000,000`.
+
+**3. Value in.**
+
+```text
+n      = floor(max(0, amountIn − dust(i)) × priceLow[i] / scale(i))
+budget = floor(n × (1,000,000 − spread) / 1,000,000)
+```
+
+If `n = 0` the output is zero.
+
+**4. Risk charge.** Zero when `riskAversion = 0` or `a = b`. Otherwise, with
+`cov` the covariance matrix:
+
+```text
+v    = cov[a][a] + cov[b][b] − 2 × cov[a][b]
+d[c] = cov[a][c] − cov[b][c]                              for each category c
+
+E[c] = trunc(offset[c] × priceLow[reference token of c] / 1,000,000)
+     + Σ usd(t, held(t))  over tokens t in category c       where d[c] ≠ 0
+
+g      = Σ trunc(E[c] × d[c] / 1e9)                        over categories with d[c] ≠ 0
+change = trunc(n × n × v / 1e27) + sign(g) × floor(n × |g| / 5e17)
+risk   = floor(change × riskAversion / 1,000,000)          if change > 0, else 0
+```
+
+Each `usd(t, held(t))` must be at most `2^128 − 1`.
+
+**5. Size charge.**
+
+```text
+size = ceil(n × n × sizeRate[i] / 1e27)
+```
+
+**6. Cost of the input token.** By the token cost kind of `i`:
+
+```text
+none              entry = 0
+fixed             entry = ceil(n × coefficient[i] / 1e18)
+inventory-based   entry = ceil(k × n × (2 × I + n) / 2e54)
+                  k = ceil(coefficient[i] × 1e36 / T)
+```
+
+where `T = categoryTarget[a] × 1e12` must be nonzero and `I = usd(i, B[i])`,
+without native MON, must be at most `2^128 − 1`.
+
+**7. Deduct.** Subtract `risk`, then `size`, then `entry` from `budget`. If any
+of them is greater than or equal to what remains, the output is zero.
+
+**8. Cost of the output token.** By the token cost kind of `o`, the USD value
+`y` paid out:
+
+```text
+none              y = budget
+fixed             y = floor(budget × 1e18 / (1e18 + coefficient[o]))
+inventory-based   the largest y with  y − credit(y) ≤ budget
+```
+
+For the inventory-based kind, with `T = categoryTarget[b] × 1e12` nonzero,
+`I = usd(o, B[o])` and `k = floor(coefficient[o] × refund[o] × 1e36 / (T ×
+1000))`:
+
+```text
+credit(y) = floor(k × z × (2 × I − z) / 2e54),   z = min(y, I)
+```
+
+It is refused if `k ≠ 0` and `I > floor((1e54 − 1) / k)`. Compute `y` as:
+
+```text
+if k = 0:                 y = budget
+full = floor(k × I × I / 2e54)
+if budget ≥ I − full:     y = budget + full
+otherwise:
+    b = 1e54 − k × I
+    r = ceil(sqrt(b × b + 2e54 × k × budget))
+    y = floor(2e54 × budget / (b + r))
+    if (y + 1) − floor(k × (y + 1) × (2 × I − (y + 1)) / 2e54) ≤ budget:  y = y + 1
+```
+
+**9. Amount out.**
+
+```text
+rawOut = floor(y × scale(o) / priceHigh[o])
+quoted = max(0, rawOut − dust(o))
+```
+
+`makerQuoteExactInput` returns `(quoted, priceBlock)`. It reverts if `amountIn`
+is zero, if `amountIn > maxAmountIn`, if `quoted` is zero, or if the swap fails
+the [inventory check](#inventory-check) at the quote threshold with `received =
+amountIn` and `paid = quoted + dust(o)`.
+
+```text
+maxAmountIn = ceil((664619068552888026590626425199190042 + 1) × scale(i) / priceLow[i]) − 1
+```
+
+## Inventory check
+
+Given `received` of token `i` and `paid` of token `o`:
+
+```text
+threshold(C) = C                               at settlement
+threshold(C) = ceil(C × 90 / 100) − 1          for a quote, when C > 0; else 0
+
+unitsMax    = amount(i, 2^128 − 1)
+tokenLimit  = min(unitsMax, max(B[i], threshold(tokenCap[i])))
+```
+
+Refused unless `paid ≤ B[o]`, `B[i] ≤ tokenLimit` and `received ≤ tokenLimit −
+B[i]`. Then, over the tokens `t` of the input token's category `a`:
+
+```text
+value(r, p) = Σ usd(t, h[t]),   h[t] = held(t), plus r for t = i, minus p for t = o
+```
+
+Refused unless `value(received, paid) ≤ max(threshold(categoryCap[a]),
+value(0, 0))`. A holding that is already above a cap can shrink but not grow.
+
+## Settlement
+
+**Execution surcharge.** With `gasPrice` the transaction's effective gas
+price, `baseFee` the block's base fee, and `tip = gasPrice − baseFee` when
+`gasPrice > baseFee`:
+
+```text
+s = 1200    if the transaction has already called the AuctionHandler
+            (0xD32EdF6642D917DbBE7B8BF8e5d6F5df6a9FFF58)
+else s = 1200   if tip > baseFee and tip − baseFee > floor(baseFee / 2)
+else s = 800    if tip > baseFee
+else s = 600    if tip > floor(baseFee / 2)
+else s = 0
+
+if priceBlock = N and s ≠ 0:   s = s / 4 − 100
+
+cut(x) = floor(x × (1,000,000 − s) / 1,000,000)
+```
+
+**The four swaps.** `quoted` and `rawOut` are from the [exact-input
+quote](#exact-input-quote) evaluated at the block the swap executes in.
+
+| Call | Output | Reverts if |
+| --- | --- | --- |
+| `makerSwapExactInput` | `out = cut(quoted)` | `out = 0`, `out < minAmountOut`, past `deadlineBlock` |
+| `swapWithExtraFees` | `gross = cut(quoted)`, `fee = floor(gross × extraFeePpm / 1,000,000)`, `out = gross − fee` | `gross = 0`, `out < minAmountOut`, past `expiry`, `extraFeePpm > 1,000,000` |
+| ERC-7815 `swap`, sell | `out = max(0, cut(rawOut) − dust(o))` | `out = 0` |
+| ERC-7815 `swap`, buy | `out = target`; input is found by the [search](#exact-output) | `target > B[o] − dust(o)`, or no input reaches it |
+
+The two ERC-7815 swaps take the surcharge before removing `dust(o)`; the other
+two take it after. For an xStock output the results can differ by a raw unit.
+An ERC-7815 swap of zero succeeds and moves nothing.
+
+**Transfers.** The pool pulls `amountIn` from the caller. If `out > 0` it sends
+`out + dust(o)` to the recipient. If `fee > 0` it calls the fee contract and
+sends it `fee`. Each transfer moves `units(t, amount)` of its token, rounded
+down on its own:
+
+```text
+unitsIn'  = unitsIn  + units(i, amountIn)
+unitsOut' = unitsOut − units(o, out + dust(o)) − units(o, fee)
+received  = amount(i, unitsIn')  − B[i]
+paid      = B[o] − amount(o, unitsOut')
+```
+
+where `unitsIn` and `unitsOut` are the actual units before the swap. The swap
+reverts if `unitsIn' > 2^128 − 1`, or if it fails the [inventory
+check](#inventory-check) at the settlement threshold with `received` and
+`paid`. For an xStock the pool also checks that the token moved exactly the
+shares computed here, and reverts with `xstock: multiplier stale` otherwise.
+
+**State afterwards.** For both tokens the actual units and the recorded units
+equal `unitsIn'` and `unitsOut'`. Nothing else changes. To quote a second swap
+of the same route, apply this change first.
+
+## Exact output
+
+ERC-7815 `swap` with the buy side returns the input found by this search, where
+`sell(x) = max(0, cut(rawOut(x)) − dust(o))`:
+
+```text
+targetUsd = ceil((target + dust(o)) × priceHigh[o] / scale(o))
+high = min(maxAmountIn, max(1, ceil(targetUsd × scale(i) / priceLow[i]) + dust(i)))
+low  = 0
+
+while sell(high) < target:
+    if marginalBudget(high) = 0:
+        find adjacent x, x + 1 in [low, high] by bisection with
+            marginalBudget(x) > 0 and marginalBudget(x + 1) = 0
+        high = x + 1 if sell(x + 1) > sell(x), else x
+        revert if sell(high) < target
+        stop this loop
+    revert if high = maxAmountIn
+    low  = high
+    high = maxAmountIn if high > floor(maxAmountIn / 2), else 2 × high
+
+while high − low > 1:
+    mid = low + floor((high − low) / 2)
+    if sell(mid) ≥ target: high = mid   else: low = mid
+
+amountIn = high
+```
+
+Both bisections start from the `low` and `high` in hand and halve the interval
+with `mid = low + floor((high − low) / 2)`.
+
+## Marginal price and limits
+
+`marginalBudget(x)` is the USD that one more unit of input value adds to the
+budget, scaled by 1e36. With `n` from step 3 for `amountIn = x`:
+
+```text
+slope     = trunc((trunc(2 × n × v / 1e9) + 2 × g) × riskAversion / 1,000,000)
+riskSlope = slope   if change ≥ 0 and slope > 0, else 0       (0 if risk is not charged)
+
+cost = riskSlope × 1e18
+     + coefficient[i] × 1e18                                   (fixed input cost only)
+     + sizeRate[i] × n × 2e9
+     + ceil(k × (I + n) / 1e18)                                (inventory-based input cost only)
+
+marginalBudget(x) = max(0, floor((1,000,000 − spread) × 1e36 / 1,000,000) − cost)
+```
+
+ERC-7815 `price` returns, for each amount `x`:
+
+```text
+revert if x > maxAmountIn, or if the quote of x fails the inventory check
+m = marginalBudget(x);  if m = 0 the price is 0 / 1
+outUsd = floor(quoted(x) × priceHigh[o] / scale(o))
+den    = 1e36 + coefficient[o] × 1e18                          (fixed output cost only)
+den    = den − floor(k × (I − outUsd) / 1e18)                  (inventory-based output cost, when outUsd < I)
+numerator   = floor(floor(priceLow[i] × 1e36 / priceHigh[o]) × m / den)
+denominator = 1e36 × scale(i) / scale(o)     if scale(i) ≥ scale(o)
+            = 1e36 / (scale(o) / scale(i))   otherwise
+```
+
+A zero numerator is returned as `0 / 1`. `swap` returns the same fraction for
+the amount it traded, with the numerator passed through `cut`.
+
+ERC-7815 `getLimits` returns `[sellLimit, buyLimit]`:
+
+```text
+L         = min(unitsMax, threshold(tokenCap[i]))     with the quote threshold
+sellLimit = min(maxAmountIn, L − B[i])                if B[o] > 0 and B[i] < L, else 0
+buyLimit  = max(0, B[o] − dust(o))
+```
+
+## Keeping state current from events
+
+Every change to the state above emits a log. Collect, for each block, all logs
+matching these four filters:
+
+| Filter | Carries |
+| --- | --- |
+| address = pool | Everything the pool emits |
+| topic 0 ∈ {`Transfer`, `TransferShares`}, topic 1 = pool | Tokens leaving the pool |
+| topic 0 ∈ {`Transfer`, `TransferShares`}, topic 2 = pool | Tokens reaching the pool |
+| address = WMON, topic 0 ∈ {`Deposit`, `Withdrawal`}, topic 1 = pool | The pool wrapping and unwrapping MON |
+
+Apply a block's logs in order of transaction index, then log index. Apply only
+blocks that are final and whose logs you hold completely. Advance the model's
+block number for every block, including blocks without logs: price age depends
+on it.
+
+| Event | From | Effect |
+| --- | --- | --- |
+| `MakerPageUpdated(lane, payload, control)` | pool | A parameter or price update; see [update payloads](#update-payloads). |
+| `MakerInventoryUpdated(index, token, balance)` | pool | Recorded units of token `index` become `balance`. Then set bit `w` of slot 121 if word `107 + w` is now zero, and clear it otherwise. |
+| `MakerLendingExposureUpdated(venue, category, sequence, offset)` | pool | The category's `offset` becomes `offset`. `sequence` must be one above slot 7 bits 160–191, and replaces it. |
+| `MakerMultiplierUpdated(token, multiplier)` | pool | The stored multiplier of `token` becomes `multiplier`. Ignore it for a token that is not listed. |
+| `MakerWmonBalanceCheckpoint(balance)` | pool | The actual WMON balance becomes `balance`. |
+| `NativeBalanceCheckpoint(balance)` | pool | `nativeBalance` becomes `balance`. |
+| `Paused(paused)` | pool | Slot 2 bit 132 becomes `paused`. |
+| `Transfer(from, to, value)` | an ordinary token | Actual balance plus `value` if `to` is the pool, minus `value` if `from` is. |
+| `TransferShares(from, to, value)` | an xStock | Actual shares plus `value` if `to` is the pool, minus `value` if `from` is. |
+| `Deposit(dst, wad)`, `Withdrawal(src, wad)` | WMON | Actual WMON balance plus `wad` if `dst` is the pool; minus `wad` if `src` is. |
+| `MakerTokenAdded`, `MakerTokenRetired` | pool | The token list changed. Read a new snapshot. |
+| `Upgraded(implementation)` | pool | See [format and upgrades](#format-and-upgrades). |
+
+An xStock emits both `Transfer` and `TransferShares` for one movement. Apply
+only `TransferShares`, then, at the end of the block, set each xStock's balance
+to `floor(shares × multiplier / 1e18)`. A transfer from the pool to itself
+changes nothing. Other pool events, such as `MakerSwapExecuted`, describe
+changes the events above already carry; applying them too would count a swap
+twice.
+
+Native MON can be forced into the pool without a log. The model's native
+balance is then too low until the pool next emits `NativeBalanceCheckpoint`.
+Read a new snapshot from time to time, and whenever a log does not fit the
+state you hold.
+
+### Update payloads
+
+`MakerPageUpdated.payload` is a sequence of 32-byte big-endian words: a header
+followed by the new values, packed as in storage. `lane` says which kind. After
+applying an update, slot 2 must equal `control`; if it does not, read a new
+snapshot.
+
+Every header repeats the token count, the category count and the registry
+generation it was built for; they must match the state.
+
+**Lane 1: prices.** Header: counter in bits 0–15, prices enabled in bit 16, the
+64 token switches in bits 17–80, token count in 81–88, the value 8 in 89–96,
+registry generation in 97–128. Then `ceil(tokens / 4)` words that replace the
+price words from slot 20. Set the price update counter, the enabled bit and the
+switches from the header, and `priceBlock` to the block of the event.
+
+**Lane 2: risk.** Header: the value 8 in bits 0–7, token count in 8–15,
+category count in 16–23, `riskAversion` in 24–55, `maxPriceAge` in 56–63,
+`spreadPerBlock` in 64–79, zero in 80–111, the offset counter (slot 7 bits
+160–191) in 112–143, registry generation in 144–175. Then, in order:
+
+- `ceil(categories / 3)` words of category records, each replacing bits 0–254
+  of its word from slot 27 (bits 0–84 for slot 36);
+- `ceil(categories × (categories + 1) / 32)` words replacing the covariance
+  words from slot 37;
+- `ceil(tokens / 5)` words of 48-bit entries, five per word: `spreadIn` in bits
+  0–15, `spreadOut` in 16–31, `sizeRate` in 32–47, each replacing that field of
+  its token record;
+- `ceil(tokens × (tokens − 1) / 32)` words replacing the pair spread words from
+  slot 63.
+
+Set `riskAversion`, `maxPriceAge` and `spreadPerBlock` from the header and set
+bit 134.
+
+**Lane 4: token costs.** Header: the value 8 in bits 0–7, token count in 8–15,
+category count in 16–23, zero in 24–31, registry generation in 32–63. Then
+`ceil(tokens / 3)` words of 76-bit entries, three per word: coefficient in bits
+0–63, kind in 64–65, `refund` in 66–75. Each replaces its token's coefficient
+and the kind and `refund` fields of its token record. Then `ceil(categories /
+4)` words replacing the category target words from slot 94. Set bit 135.
+
+**Lane 8: caps.** The payload is the ABI encoding of `(address[] tokens,
+uint256[] tokenCaps, uint8[] categories, uint256[] categoryCaps)`. Store each
+named cap in its [encoded form](#caps); the others keep their values.
