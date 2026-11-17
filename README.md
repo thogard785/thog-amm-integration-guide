@@ -19,4 +19,5 @@ Network: Monad mainnet, chain ID 143. Pool:
 [`0x80c74517BCC2D67fFE02D3ED886796272F647210`](https://monadscan.com/address/0x80c74517BCC2D67fFE02D3ED886796272F647210).
 
 To charge an integrator fee you need a fee recipient set up for you first:
-[open an issue](https://github.com/thogard785/thog-amm-integration-guide/issues/new).
+message [@thogard](https://t.me/thogard) on Telegram or email
+[alex@fastlane.finance](mailto:alex@fastlane.finance).

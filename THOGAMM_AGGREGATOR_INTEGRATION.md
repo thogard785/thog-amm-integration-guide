@@ -141,8 +141,9 @@ This is the same swap, with a share of the output diverted to you.
 > **Contact us before you use a fee.** `feeRecipient` is not a wallet address.
 > It must be a fee collection contract that we deploy for your integration,
 > where your fees accrue until they are paid out to you. To have one set up,
-> [open an issue](https://github.com/thogard785/thog-amm-integration-guide/issues/new)
-> in this repository. A swap with a nonzero fee and any other recipient reverts.
+> message [@thogard](https://t.me/thogard) on Telegram or email
+> [alex@fastlane.finance](mailto:alex@fastlane.finance). A swap with a nonzero
+> fee and any other recipient reverts.
 
 **`extraFeePpm` is in parts per million of the output**, not basis points:
 
