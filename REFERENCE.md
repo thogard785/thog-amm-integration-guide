@@ -1,28 +1,28 @@
-# ThogAMM exact quote reference
+# ThogAMM integer quote reference
 
-This is the deployed **schema 8 / wire 8 / model 3** numeric reference. For onboarding,
-see the [integration guide](THOGAMM_AGGREGATOR_INTEGRATION.md). The
+Use this specification to implement ThogAMM's pricing model and state decoder.
+The [integration guide](THOGAMM_AGGREGATOR_INTEGRATION.md) explains contract calls,
+token funding, and SDK setup. This reference defines the arithmetic needed to
+reproduce those calls exactly.
+
+The deployment in that guide uses snapshot schema **8**, publication wire format
+**8**, and pricing model **3**. Decode calls and events with the
+[contract ABI](abi/ThogAMM.json). The
 [shared Rust model](https://github.com/thogard785/thog-amm-poll-sdk/tree/v0.6.1/model)
-is the executable reference for SDK 0.6.1. Verify the implementation and model
-identity before selecting an SDK; stored multipliers retain model identity 3.
-Floating-point approximations cannot reproduce exact integer execution.
+is an executable implementation. Match the model to the proxy's implementation;
+the format identifiers alone do not identify contract bytecode.
 
-The public quote, swap and ERC-7815 selectors and return shapes are unchanged.
-The old packed mirror getters are removed. `getPoolData(uint8,uint8)` retains its selector
-and retains the v7 tuple shape; its schema, field offsets and inventory semantics change. Use the current ABI. An integration that only
-calls the unchanged quote functions does not need to implement these internals.
-
-For a complete bootstrap, subscription and recovery procedure, start with the
-[aggregator onboarding guide](THOGAMM_AGGREGATOR_INTEGRATION.md#build-the-schema-8-model-in-memory)
-and [registry/metadata guide](THOGAMM_AGGREGATOR_INTEGRATION.md). This specification
-supplies the exact numeric and wire rules used by that model.
+Amounts, prices, fees, and risk calculations use integer arithmetic. Preserve
+the division order, rounding direction, and overflow checks in each formula.
+The [snapshot procedure](THOGAMM_AGGREGATOR_INTEGRATION.md#read-a-complete-snapshot)
+explains how to obtain all inputs from one block.
 
 Storage uses `1 << 255` as a nonzero encoding for empty words. Inventory
 words 107–120 use the separate bitmap in slot 121: bit `wordSlot-107` equal
 to one means the decoded inventory word is zero. A zero bitmap bit means
 read the physical word verbatim, including `1 << 255`. For other slots,
 the complete word `1 << 255` decodes to zero. This preserves all 128 bits
-of both balances. `getPoolData` already returns decoded logical words.
+of both balances. `getPoolData` returns decoded logical words.
 Do not apply physical-marker decoding to its returned values.
 
 ## Snapshot and event synchronization
@@ -57,15 +57,16 @@ Do not apply physical-marker decoding to its returned values.
    `PerplTradeExecuted`, `PerplSynced`, `PerplConfigured` and
    `PerplCollateralMoved` require no additional quote-state updates. Do not
    count their position changes again after applying the exposure event.
-5. `MakerTokenAdded` and `MakerTokenRetired` change the registry generation and may change its geometry. Discard a model for the old
-   shape and rebuild it from a complete snapshot with the new configuration.
+5. `MakerTokenAdded` and `MakerTokenRetired` change registry membership, ordering,
+   or dimensions. Load a complete snapshot and rebuild the model and prepared
+   pairs for the resulting registry.
    `MakerTokenAdded` has the expanded bid/ask, volume-rate and inventory-cap
    metadata tuple; derive its signature from the current ABI.
-   It does not carry new covariance/pair rows, so the listing event alone cannot
+   It does not carry the covariance/pair rows, so the listing event alone cannot
    reconstruct the expanded page.
 6. On a reorg, discard affected event positions and reload the replacement
-   fork. A snapshot covers events through its block. Older events may still
-   resolve submission/landing attribution but must not rewind canonical state.
+   fork. A snapshot covers events through its block; begin replay after that
+   block so those changes are not applied twice.
 7. `Paused(bool)` sets maker pause bit 132. Apply ERC-20 and WMON balance
    movements exactly once, with `MakerWmonBalanceCheckpoint` and
    `NativeBalanceCheckpoint` as absolute replacements at their log positions.
@@ -88,11 +89,10 @@ Do not apply physical-marker decoding to its returned values.
    Advance the quote block even when a block has no relevant events.
 
 `MakerInventoryUpdated(uint8,address,uint128)` is an absolute per-token
-checkpoint. `MakerStorageUpdated` is not emitted in schema 8. A schema change
-requires the corresponding ABI and model; do not decode schema 8 with retired
-packed snapshots.
+checkpoint. Decode each publication using the ABI and wire format declared by
+the snapshot, and reject an unsupported format.
 
-Before quote execution, the version must be 8, maker pause must be false,
+Before quote execution, the layout identifier must be 8, maker pause must be false,
 prices must be enabled, structural and wrapper readiness must be set. Both endpoint sides must be enabled.
 The posting block must be nonzero and no later than the quote block, with age
 at most `maxAge`. Identical/unknown endpoints are rejected.
@@ -200,11 +200,10 @@ raw limits, then category IDs and USD-wei limits. It changes only those entries,
 has no header or freshness input, and emits lane 8 with the ABI-encoded arrays
 of requested limits. Reproduce the downward cap encoding before updating the
 24-bit stored fields; preserve unspecified entries and apply duplicates in
-order. The cap setter does not change control or readiness; bits 136–137 remain
-reserved. Initialization installs fixed packed constants calculated offchain without a
-lane-8 event. The v7-to-v8 migration preserves existing caps. Bootstrap both
-cases from the snapshot.
-See the [defaults and manual workflow](THOGAMM_AGGREGATOR_INTEGRATION.md#quotes-limits-and-settlement).
+order. The cap setter does not change control or readiness; bits 136–137 are
+reserved. Read initial cap values from the complete snapshot, then apply each
+lane-8 event exactly once. See [inventory limits](THOGAMM_AGGREGATOR_INTEGRATION.md#quotes-limits-and-settlement)
+for their effect on quotes and settlement.
 
 Wrapper kind 0 is none, 1 fixed, 2 sliding. None requires zero coefficient and
 refund. Fixed requires a coefficient below `1e18` and zero refund. Sliding
@@ -215,17 +214,25 @@ metadata and category USD targets; wrapper publication changes its policy and ta
 
 ## Wrapper inventory and donation timing
 
-Unwrapped xStocks use immutable shares in words 107–120 and inventory events.
-Value them at `floor(shares * storedMultiplier / 1e18)` for the selected block.
-Read physical `sharesOf(proxy)` on each stock and `storedMultiplier(token)` on
-the executor at the same block pin as the page. Never reconstruct shares from
-rounded `balanceOf`. Each maker transfer independently floors its share amount,
-including separate recipient and fee transfers. The executor requires the issuer
-and stored multiplier to agree for settlement involving that stock. A successful
-sync changes valuation and emits `MakerMultiplierUpdated` without rewriting the
-share ledger. Zero accounted shares value to zero. Ordinary token units and
-events retain their meaning.
+Unwrapped xStocks use shares in words 107–120 and inventory events. Value them
+at `floor(shares * storedMultiplier / 1e18)`, where `storedMultiplier` is read
+from the executor's `storedMultiplier(token)` getter for that stock. Quotes and
+settlement use this stored value; they do not call the issuer's multiplier
+getter. `syncMultipliers` copies the issuer's value into the pool and emits
+`MakerMultiplierUpdated` without changing accounted shares.
 
+Read physical `sharesOf(proxy)` and the stored multiplier at the same block hash
+as the page. Never reconstruct shares from rounded `balanceOf`. Include every
+listed stock because its valuation can affect the portfolio risk of other pairs.
+A listed stock requires a nonzero stored multiplier.
+
+Each maker transfer moves
+`floor(amount * 1e18 / storedMultiplier)` shares, including separate recipient
+and fee transfers. Settlement reads physical shares immediately before and after
+each transfer and checks that they changed by exactly this amount. A mismatch
+reverts with `xstock: multiplier stale`. Accounted shares are updated by the
+verified share movement. Zero shares value to zero. Ordinary tokens use raw
+ERC-20 units for balances and transfer events.
 
 For a quote on `i -> o`, form the raw holdings vector `B` by taking the physical
 snapshot balance for `i` and `o`, and the stored accounted balance for every
@@ -251,7 +258,7 @@ Reverting pool/route probes omit ledger accounting. Temporary flash principal
 is never classified as a donation: Balancer funding is repaid inside its unlock,
 and V2/V3/V4 flash quotes revert the whole funding frame with their result.
 Neither funding path checkpoints the temporarily borrowed balance. The complete
-`quoteExecute` simulation still executes settlement accounting before reverting.
+`quoteExecute` simulation executes settlement accounting before reverting.
 Price, risk and wrapper publications cannot overwrite the ledger.
 
 Stored units (xStock shares or ordinary raw amounts) must fit `uint128` whenever admitted or changed; overflow reverts rather
@@ -285,7 +292,7 @@ encodes the configured value in the risk lane; models read the stored value.
 4. Set `g = sum_c trunc(exposureUSD[c] * d[c] / 1e9)`, preserving the
    **per-category** division order. For `a == b`, both `v` and `g` are zero.
    This removes category risk only; volume and wrapper costs below still apply.
-5. For an unwrapped xStock, set `inputDust = max(2, ceil(multiplier / 1e18))`;
+5. For an unwrapped xStock, set `inputDust = max(2, ceil(storedMultiplier / 1e18))`;
    for an ordinary token, use zero. Compute
    `n = floor(max(0, amountIn - inputDust) * priceInLower / inputScale)`
    and `available = floor(n * (1e6-spread) / 1e6)`.
@@ -314,7 +321,7 @@ is zero. Otherwise `budget = available - penalty - volumeCost - entry`.
 The volume integral starts at zero for each swap. Splitting a trade reduces this
 term; no transaction history or rolling-volume accumulator is maintained. The
 stateful inventory and sliding-wrapper potentials retain their own integration
-properties. `MakerSwapExecuted.inventoryPenaltyUsdWad` still reports the inventory penalty;
+properties. `MakerSwapExecuted.inventoryPenaltyUsdWad` reports the inventory penalty;
 volume cost is a separate component in the exact quote model.
 
 For no output friction, `outputUSD=budget`. For fixed output friction,
@@ -333,7 +340,8 @@ For sliding output friction, solve the largest admitted integer `y` satisfying
   implementation uses exact 512-bit division for the root.
 
 Finally compute `rawOut = floor(outputUSD * outputScale / priceOutUpper)` and
-`outputDust = max(2, ceil(outputMultiplier / 1e18))` for an xStock, zero otherwise.
+`outputDust = max(2, ceil(storedOutputMultiplier / 1e18))` for an xStock, zero otherwise.
+Here `storedOutputMultiplier` is the pool's stored multiplier for the output stock.
 The read-only output is `max(0, rawOut - outputDust)`. Direct
 `makerSwapExactInput` applies any execution widening to this value. ERC-7815
 instead applies widening to `rawOut`, then subtracts `outputDust`. Preserve this
@@ -372,7 +380,7 @@ bounded by the arithmetic range and receiving-token quote cap, and is zero
 when no output inventory is available. The independent buy limit is the actual
 output balance minus output dust, floored at zero. These are upper bounds; the exact quote still enforces category
 caps and the nonlinear curve. `priceDerivative` and
-`swapToPrice` remain `NotImplemented` and are not advertised capabilities.
+`swapToPrice` revert with `NotImplemented` and are not advertised capabilities.
 
 Quote functions omit execution defense but include stored age widening.
 
@@ -442,7 +450,8 @@ holdings. Singleton categories use the same calculation.
 For a configured cap `C > 0`, the ordinary quote threshold is
 `Q(C) = ceil(C * 90 / 100) - 1`; `Q(0) = 0`. Use full-precision arithmetic,
 including for `uint256.max`. Final settlement uses the full configured cap `C`.
-The existing 90% quote threshold remains an admission policy, not a reservation.
+The 90% quote threshold governs quote availability; a quote does not reserve
+inventory.
 
 Reconciliation, a price change, a taker fill or a manual cap reduction can place
 existing holdings over a threshold. Preserve that starting balance. For either
