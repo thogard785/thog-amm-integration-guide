@@ -498,7 +498,7 @@ charges for the
 
 ## Listed tokens
 
-The list at the time of writing. Read `getTokens(poolId)` for the current one.
+Read `getTokens(poolId)` at the quote block for the active list. The planned ANTx listing becomes available after the owner appends it and the publisher enables its sides.
 
 | Token | Address | Decimals | Kind |
 | --- | --- | ---: | --- |
@@ -519,6 +519,9 @@ The list at the time of writing. Read `getTokens(poolId)` for the current one.
 | SPCXx | `0x68fa48B1C2FE52b3D776E1953e0E782b5044Ce28` | 18 | xStock |
 | MUx | `0xf6a873BAe4Ba1B304e45dF52A4b7D176E1C6a8c4` | 18 | xStock |
 | SKHYx | `0x58100046a4Afcd4eE4faDbD4244f3f895a341c56` | 18 | xStock |
+| ANTx (Anthropic) | `0x909369940f22dC1c143aC78753A33f41597138B1` | 18 | xStock (planned) |
+
+ANTx uses the same share accounting and stored multiplier as NVDAx. Quote and settle the unwrapped ANTx address above. On `MakerTokenAdded`, reload the registry and its covariance and spread rows before quoting any pair against the new inventory.
 
 Tokens that charge a fee on transfer are not supported and are not listed.
 
