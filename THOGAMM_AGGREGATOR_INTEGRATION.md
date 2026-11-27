@@ -521,7 +521,7 @@ Read `getTokens(poolId)` at the quote block for the active list. The planned ANT
 | SKHYx | `0x58100046a4Afcd4eE4faDbD4244f3f895a341c56` | 18 | xStock |
 | ANTx (Anthropic) | `0x909369940f22dC1c143aC78753A33f41597138B1` | 18 | xStock (planned) |
 
-ANTx uses the same share accounting and stored multiplier as NVDAx. Quote and settle the unwrapped ANTx address above. On `MakerTokenAdded`, reload the registry and its covariance and spread rows before quoting any pair against the new inventory.
+ANTx uses the same share accounting and stored multiplier as NVDAx. Quote and settle the unwrapped ANTx address above. The token-specific size rate can be zero. Always apply the published inventory, spread and wrapper terms for the pair. On `MakerTokenAdded`, reload the registry and its covariance and spread rows before quoting any pair against the new inventory.
 
 Tokens that charge a fee on transfer are not supported and are not listed.
 
