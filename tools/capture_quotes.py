@@ -83,26 +83,26 @@ def decode_snapshot(encoded):
     return fields, words, tokens
 
 
-XSTOCKS = ['0x90a2a4c76b5d8c0bc892a69ea28aa775a8f2dd48', '0xa753a7395cae905cd615da0b82a53e0560f250af', '0x8d512a03600981b8e86556fd5c0fbdd726fe1821', '0x299c95eb52bfd5bc98d924bce17197b64864589b', '0xc845b2894dbddd03858fd2d643b4ef725fe0849d', '0x8ad3c73f833d3f9a523ab01476625f269aeb7cf0', '0x68fa48b1c2fe52b3d776e1953e0e782b5044ce28', '0xf6a873bae4ba1b304e45df52a4b7d176e1c6a8c4', '0x58100046a4afcd4ee4fadbd4244f3f895a341c56']
-
 def share_balances(rpc, tokens, block):
     selector = lambda sig: subprocess.check_output([str(Path.home()/'.foundry/bin/cast'), 'sig', sig], text=True).strip()
-    shares_call = selector('sharesOf(address)') + word(int(PROXY, 16))
     multiplier_selector = selector('storedMultiplier(address)')
-    calls = [call for t in tokens if t['address'] in XSTOCKS for call in [
-        (t['address'], shares_call),
-        (PROXY, multiplier_selector + word(int(t['address'], 16))),
-    ]]
-    if not calls: return {}
-    responses = rpc.send([{'jsonrpc':'2.0','id':i,'method':'eth_call','params':[{'to':to,'data':data,'gasPrice':'0x1'},block]} for i,(to,data) in enumerate(calls)])
-    by_id = {r['id']:r for r in responses}
-    if any('error' in r for r in responses): raise RuntimeError(responses)
-    result = {}
-    for i in range(0, len(calls), 2):
-        shares, multiplier = by_id[i]['result'], by_id[i+1]['result']
-        assert len(shares) == 66 and len(multiplier) == 66
-        result[calls[i][0]] = {'shares':hex(int(shares,16)), 'multiplier':hex(int(multiplier,16))}
-    return result
+    addresses = [t['address'] for t in tokens]
+    multipliers = rpc.calls([multiplier_selector + word(int(t, 16)) for t in addresses], block)
+
+    def uint256(response):
+        if 'error' in response or len(response['result']) != 66:
+            raise ValueError(f"expected uint256 return data: {response}")
+        return int(response['result'], 16)
+
+    stored = {t: value for t, r in zip(addresses, multipliers) if (value := uint256(r))}
+    if not stored:
+        return {}
+    shares_call = selector('sharesOf(address)') + word(int(PROXY, 16))
+    responses = rpc.send([{'jsonrpc': '2.0', 'id': i, 'method': 'eth_call',
+                           'params': [{'to': t, 'data': shares_call, 'gasPrice': '0x1'}, block]}
+                          for i, t in enumerate(stored)])
+    by_id = {r['id']: uint256(r) for r in responses}
+    return {t: {'shares': hex(by_id[i]), 'multiplier': hex(m)} for i, (t, m) in enumerate(stored.items())}
 
 def capture(rpc, block):
     header = rpc.call("eth_getBlockByNumber", [hex(block), False])

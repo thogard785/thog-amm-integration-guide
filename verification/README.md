@@ -13,11 +13,12 @@ model.
 
 | Fixture | What it holds | Calls | Succeeded | Reverted |
 | --- | --- | ---: | ---: | ---: |
+| [deployed-18](../fixtures/deployed-18.json.gz) | All 306 directed pairs at block 125,783,579 | 3,672 | 1,816 | 1,856 |
 | [deployed-stored-multipliers](../fixtures/deployed-stored-multipliers.json.gz) | The deployed 17-token pool at block 122,916,130: every one of the 272 token pairs | 3,264 | 2,033 | 1,231 |
 | [deployed-v8](../fixtures/deployed-v8.json.gz) | The deployed pool when it listed 13 tokens: all 156 pairs | 1,872 | 954 | 918 |
 | [boundaries-v8](../fixtures/boundaries-v8.json.gz) | 14 pool configurations on a fork, chosen to reach the edges of the pricing and cap arithmetic | 24,024 | 9,982 | 14,042 |
 | [execution-model3](../fixtures/execution-model3.json.gz) | Swaps on a fork: `makerSwapExactInput` and ERC-7815 buys at every surcharge tier | 32,760 | 16,428 | 16,332 |
-| **Total** | | **61,920** | **29,397** | **32,523** |
+| **Total** | | **65,592** | **31,213** | **34,379** |
 
 Each fixture is gzipped JSON:
 
@@ -51,6 +52,7 @@ their cases involve, so set the identifier to 3 before decoding them.
 
 | Fixture | What it holds |
 | --- | --- |
+| [events-18](../fixtures/events-18.json.gz) | Block 125,783,323 and its parent, with 46 logs including share transfers |
 | [events-stored-multipliers](../fixtures/events-stored-multipliers.json.gz) | 51 consecutive blocks of the 17-token pool with 505 logs |
 | [events-v8](../fixtures/events-v8.json.gz) | 201 consecutive blocks of the 13-token pool with 220 logs |
 

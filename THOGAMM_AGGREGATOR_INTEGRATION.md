@@ -346,7 +346,7 @@ reproduce and return the same numbers:
 
 ```toml
 [dependencies]
-thogamm-poll = { git = "https://github.com/thogard785/thog-amm-poll-sdk", tag = "v0.7.0" }
+thogamm-poll = { git = "https://github.com/thogard785/thog-amm-poll-sdk", tag = "v0.7.1" }
 tokio = { version = "1", features = ["macros", "rt-multi-thread"] }
 ```
 
@@ -498,7 +498,7 @@ charges for the
 
 ## Listed tokens
 
-Read `getTokens(poolId)` and the published side flags at the quote block. ANTx joined the registry at token index 17 and category index 14 in Monad block 125777186. [Listing transaction](https://monadscan.com/tx/0xd129bddd38e5039c81bd55e8b0c9e76cc7c48fd5b18bf99f35f779f14a3b72eb)
+Read `getTokens(poolId)` and the published side flags at the quote block.
 
 | Token | Address | Decimals | Kind |
 | --- | --- | ---: | --- |
@@ -519,9 +519,7 @@ Read `getTokens(poolId)` and the published side flags at the quote block. ANTx j
 | SPCXx | `0x68fa48B1C2FE52b3D776E1953e0E782b5044Ce28` | 18 | xStock |
 | MUx | `0xf6a873BAe4Ba1B304e45dF52A4b7D176E1C6a8c4` | 18 | xStock |
 | SKHYx | `0x58100046a4Afcd4eE4faDbD4244f3f895a341c56` | 18 | xStock |
-| ANTx (Anthropic) | `0x909369940f22dC1c143aC78753A33f41597138B1` | 18 | xStock |
-
-ANTx uses the same share accounting and stored multiplier as NVDAx. Quote and settle the unwrapped ANTx address above. The token-specific size rate can be zero. Always apply the published inventory, spread and wrapper terms for the pair. On `MakerTokenAdded`, reload the registry and its covariance and spread rows before quoting any pair against the new inventory.
+| ANTx | `0x909369940f22dC1c143aC78753A33f41597138B1` | 18 | xStock |
 
 Tokens that charge a fee on transfer are not supported and are not listed.
 
