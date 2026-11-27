@@ -121,7 +121,7 @@ offset `(k mod n) × width`.
 | 31–32 | Token cost kind: 0 none, 1 fixed, 2 inventory-based |
 | 33–42 | `refund`: share of an inventory-based cost credited on the way out, in 1/1000 |
 | 43–58 | `spreadOut`: spread when the token is output |
-| 59–74 | `sizeRate`: size charge when the token is input, in 0.01 bp per $1,000 |
+| 59–74 | `sizeRate`: size charge when the token is input, in 0.01 bp per $1,000 (zero is valid) |
 
 **Category record** (85 bits)
 

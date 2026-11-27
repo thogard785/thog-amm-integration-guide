@@ -1,12 +1,12 @@
 [
   {
     "name": "TakerExecutor",
-    "address": "0xb108A1daF3C9BA52778b97a15eBDFa3F6f59b506",
-    "runtimeBytes": 130753,
-    "sha256": "b74a0429501ae2dd11695b67a74243c6b4554f254c924b129b87327bb8c30846",
+    "address": "0xf83c81c62c4cc1942003983919c03f5fd06d3eb4",
+    "runtimeBytes": 127347,
+    "sha256": "a69102849f92d20b7b34d3ed3d1d184ed0159b7e528c341441d5ac0daf486bb7",
     "matchesCompiledSource": true,
-    "verifiedBlock": 122888179,
-    "verifiedBlockHash": "0x18e61ba9acf2d9b1812e8dc02c236d4923f1782e7250486ba4fcfd6e5c44d904"
+    "verifiedBlock": 125777110,
+    "verifiedBlockHash": "0xbfd7d27f0ca5c59d0463c7b52386cbd1e105dbaa95b57b40ddf03365b73c453e"
   },
   {
     "name": "MakerEulerCatalog",
@@ -14,26 +14,26 @@
     "runtimeBytes": 360,
     "sha256": "9d33a52ea701fbfc0e191f118981c006ccc7f43fe60fb9954a596a7a1bc13ec4",
     "matchesCompiledSource": true,
-    "verifiedBlock": 122888179,
-    "verifiedBlockHash": "0x18e61ba9acf2d9b1812e8dc02c236d4923f1782e7250486ba4fcfd6e5c44d904"
+    "verifiedBlock": 125777110,
+    "verifiedBlockHash": "0xbfd7d27f0ca5c59d0463c7b52386cbd1e105dbaa95b57b40ddf03365b73c453e"
   },
   {
     "name": "ExecutorConfiguration",
-    "address": "0x116ed6df82a6aadc28f241fa60265784d6a1071b",
-    "runtimeBytes": 8815,
-    "sha256": "e84911e5bcd25ffca3f1f67f34468664adbe9a6450c4d6798b06ef3bb400679d",
+    "address": "0xcf635a8df39f6242796e22e874961b711379e643",
+    "runtimeBytes": 8932,
+    "sha256": "92a57d1a54093681a1baa255b1c4c0bf8d4d9f904528dc52e4fc88649052d250",
     "matchesCompiledSource": true,
-    "verifiedBlock": 122888179,
-    "verifiedBlockHash": "0x18e61ba9acf2d9b1812e8dc02c236d4923f1782e7250486ba4fcfd6e5c44d904"
+    "verifiedBlock": 125777110,
+    "verifiedBlockHash": "0xbfd7d27f0ca5c59d0463c7b52386cbd1e105dbaa95b57b40ddf03365b73c453e"
   },
   {
     "name": "MakerInventoryCaps",
-    "address": "0x430335d6066fe7d5a279bf9a9b92872070206905",
-    "runtimeBytes": 12555,
-    "sha256": "b14eddde0be2753f97f43a556d20045ae98de6419a8c391d3a058359eb8f6e54",
+    "address": "0xfa0d4a5c7ac8a2c964ee5bdad74a0dc88818c3d2",
+    "runtimeBytes": 12672,
+    "sha256": "156568bb4fc9d4a98705e21e8cd5257870bc2b70192a1d77141c20bbc88d0b55",
     "matchesCompiledSource": true,
-    "verifiedBlock": 122888179,
-    "verifiedBlockHash": "0x18e61ba9acf2d9b1812e8dc02c236d4923f1782e7250486ba4fcfd6e5c44d904"
+    "verifiedBlock": 125777110,
+    "verifiedBlockHash": "0xbfd7d27f0ca5c59d0463c7b52386cbd1e105dbaa95b57b40ddf03365b73c453e"
   },
   {
     "name": "MakerRoutingMath",
@@ -41,52 +41,88 @@
     "runtimeBytes": 5877,
     "sha256": "d570bbcf72acbc3b1761ec36d2a9270d28ec9bcb7e7c493f7506f2fe1235ff7b",
     "matchesCompiledSource": true,
-    "verifiedBlock": 122888179,
-    "verifiedBlockHash": "0x18e61ba9acf2d9b1812e8dc02c236d4923f1782e7250486ba4fcfd6e5c44d904"
+    "verifiedBlock": 125777110,
+    "verifiedBlockHash": "0xbfd7d27f0ca5c59d0463c7b52386cbd1e105dbaa95b57b40ddf03365b73c453e"
   },
   {
     "name": "MakerPoolData",
-    "address": "0x7ce3d6b74ca0ffe23ac624a45d5dcca424077dc9",
-    "runtimeBytes": 19280,
-    "sha256": "6817c2c748511c9b81062a998a76c755f937ba70926c67a37d23ddf710948c14",
+    "address": "0x093cff48db44ae5e3ce7415a4423fb42cdba2b9c",
+    "runtimeBytes": 19321,
+    "sha256": "f0e48913a4c22df84eaf105be755148eaa70cbce824adfad8789a0676d380229",
     "matchesCompiledSource": true,
-    "verifiedBlock": 122888179,
-    "verifiedBlockHash": "0x18e61ba9acf2d9b1812e8dc02c236d4923f1782e7250486ba4fcfd6e5c44d904"
+    "verifiedBlock": 125777110,
+    "verifiedBlockHash": "0xbfd7d27f0ca5c59d0463c7b52386cbd1e105dbaa95b57b40ddf03365b73c453e"
   },
   {
     "name": "MakerLending",
-    "address": "0xcb813acc02d7f1acf45270c0f03a1d55b80d0ee2",
-    "runtimeBytes": 14365,
-    "sha256": "18ada147ed996f4a71136602bbda6857bc9e15ea8fc6084492e2ae6ad490708d",
+    "address": "0x342b374bd9ac8e7431cb09bcf08fd490edb035d8",
+    "runtimeBytes": 14482,
+    "sha256": "1f5ab370b6fd4301e8a2d8fdf831567431e6662b8d30c63173b2e5b10394a91c",
     "matchesCompiledSource": true,
-    "verifiedBlock": 122888179,
-    "verifiedBlockHash": "0x18e61ba9acf2d9b1812e8dc02c236d4923f1782e7250486ba4fcfd6e5c44d904"
+    "verifiedBlock": 125777110,
+    "verifiedBlockHash": "0xbfd7d27f0ca5c59d0463c7b52386cbd1e105dbaa95b57b40ddf03365b73c453e"
   },
   {
     "name": "MakerRiskPublication",
-    "address": "0x45da4d74dc7fac9fac1a19e4f8199da62188d004",
-    "runtimeBytes": 6522,
-    "sha256": "48c9c9cf50fa179eec7823db40f45523a1aaf7883478fb75d3f60d6f2d32ec8a",
+    "address": "0xa32d4355a9da837f1d8406dc45260d0aeb85782d",
+    "runtimeBytes": 6445,
+    "sha256": "41f4aee57f9137764bc80628a342bb2e07e6db5ed0c95de08082859301be1486",
     "matchesCompiledSource": true,
-    "verifiedBlock": 122888179,
-    "verifiedBlockHash": "0x18e61ba9acf2d9b1812e8dc02c236d4923f1782e7250486ba4fcfd6e5c44d904"
+    "verifiedBlock": 125777110,
+    "verifiedBlockHash": "0xbfd7d27f0ca5c59d0463c7b52386cbd1e105dbaa95b57b40ddf03365b73c453e"
+  },
+  {
+    "name": "MetricV2",
+    "address": "0xb93c744714d28f78511535439d788b8840ab5b5c",
+    "runtimeBytes": 1807,
+    "sha256": "fd156a8a70b83f514cb26a29ea4d9e58233ee09c5721cc3f4f08b55c3c73187a",
+    "matchesCompiledSource": true,
+    "verifiedBlock": 125777110,
+    "verifiedBlockHash": "0xbfd7d27f0ca5c59d0463c7b52386cbd1e105dbaa95b57b40ddf03365b73c453e"
   },
   {
     "name": "OnePageMigration",
-    "address": "0x1338c64dd4ee812c3f84eb865b6a04c60aad3d86",
-    "runtimeBytes": 5752,
-    "sha256": "aa3ecbc2cbc67f3bcce614a50c46fbbf324f7e66a0669a97a32e8f9cb737e531",
+    "address": "0x39d817823cad7b7ac671fd2f4cdbc79fe7a9daa4",
+    "runtimeBytes": 5869,
+    "sha256": "64d1f73b692b7b3cb73efe8cc7f0f183cb2d30d43d8e6e154f1bb2d0c877e570",
     "matchesCompiledSource": true,
-    "verifiedBlock": 122888179,
-    "verifiedBlockHash": "0x18e61ba9acf2d9b1812e8dc02c236d4923f1782e7250486ba4fcfd6e5c44d904"
+    "verifiedBlock": 125777110,
+    "verifiedBlockHash": "0xbfd7d27f0ca5c59d0463c7b52386cbd1e105dbaa95b57b40ddf03365b73c453e"
   },
   {
     "name": "PerplTrading",
-    "address": "0xd883f5a79ab82969b529276456eeb8a71f940ca5",
-    "runtimeBytes": 29079,
-    "sha256": "5316087ace8a9fbd67ef18638fdcc21461079922e49d565ff9d4fe3af5e06672",
+    "address": "0x7b6ca5026c49a53c4de3defcbd0e6d582c233135",
+    "runtimeBytes": 29386,
+    "sha256": "9e7323625d62351dd125c43be89b70037574c9fc447197b59eca71c236f8f477",
     "matchesCompiledSource": true,
-    "verifiedBlock": 122888179,
-    "verifiedBlockHash": "0x18e61ba9acf2d9b1812e8dc02c236d4923f1782e7250486ba4fcfd6e5c44d904"
+    "verifiedBlock": 125777110,
+    "verifiedBlockHash": "0xbfd7d27f0ca5c59d0463c7b52386cbd1e105dbaa95b57b40ddf03365b73c453e"
+  },
+  {
+    "name": "TakerRoute",
+    "address": "0xa14c5990068ee0f38ede559b5112efd85115d375",
+    "runtimeBytes": 9870,
+    "sha256": "48d88767b8c0a4b4e30ed0199b7c398a1c60241b380629bff33c160008162e55",
+    "matchesCompiledSource": true,
+    "verifiedBlock": 125777110,
+    "verifiedBlockHash": "0xbfd7d27f0ca5c59d0463c7b52386cbd1e105dbaa95b57b40ddf03365b73c453e"
+  },
+  {
+    "name": "VenueReaders",
+    "address": "0x272ed8b4862e3632b4b8ef18dc729948274247fa",
+    "runtimeBytes": 4377,
+    "sha256": "85282e6787ee40e3ca312a6e9e1ffc93927070516a1e7a6db9d5b8023e822f15",
+    "matchesCompiledSource": true,
+    "verifiedBlock": 125777110,
+    "verifiedBlockHash": "0xbfd7d27f0ca5c59d0463c7b52386cbd1e105dbaa95b57b40ddf03365b73c453e"
+  },
+  {
+    "name": "XStockVault",
+    "address": "0xa2b496a16cdf19d217e6e1d2a1e9165480a1c860",
+    "runtimeBytes": 1580,
+    "sha256": "1cb14178dbfc5c504ce06e4a02d0d99d19300a1ed0e858ccbbfd05aa2f45ae74",
+    "matchesCompiledSource": true,
+    "verifiedBlock": 125777110,
+    "verifiedBlockHash": "0xbfd7d27f0ca5c59d0463c7b52386cbd1e105dbaa95b57b40ddf03365b73c453e"
   }
 ]

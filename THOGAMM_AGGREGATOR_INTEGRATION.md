@@ -32,7 +32,7 @@ nothing about ThogAMM.
 | Network | Monad mainnet, chain ID **143** |
 | Pool contract | `0x80c74517BCC2D67fFE02D3ED886796272F647210` |
 | Pool ID | `0xce389e78282dedac7b18ba7f775b7602d2ab3ab171bbd6711eb0239be6ef4dcc` |
-| Implementation | `0xb108a1daf3c9ba52778b97a15ebdfa3f6f59b506` |
+| Implementation | `0xF83c81C62c4cc1942003983919C03F5fd06D3eB4` |
 | ABI | [abi/ThogAMM.json](abi/ThogAMM.json) |
 
 Send every call to the pool contract. It is an upgradeable proxy
@@ -346,7 +346,7 @@ reproduce and return the same numbers:
 
 ```toml
 [dependencies]
-thogamm-poll = { git = "https://github.com/thogard785/thog-amm-poll-sdk", tag = "v0.7.0" }
+thogamm-poll = { git = "https://github.com/thogard785/thog-amm-poll-sdk", tag = "v0.7.1" }
 tokio = { version = "1", features = ["macros", "rt-multi-thread"] }
 ```
 
@@ -498,7 +498,7 @@ charges for the
 
 ## Listed tokens
 
-The list at the time of writing. Read `getTokens(poolId)` for the current one.
+Read `getTokens(poolId)` and the published side flags at the quote block.
 
 | Token | Address | Decimals | Kind |
 | --- | --- | ---: | --- |
@@ -519,6 +519,7 @@ The list at the time of writing. Read `getTokens(poolId)` for the current one.
 | SPCXx | `0x68fa48B1C2FE52b3D776E1953e0E782b5044Ce28` | 18 | xStock |
 | MUx | `0xf6a873BAe4Ba1B304e45dF52A4b7D176E1C6a8c4` | 18 | xStock |
 | SKHYx | `0x58100046a4Afcd4eE4faDbD4244f3f895a341c56` | 18 | xStock |
+| ANTx | `0x909369940f22dC1c143aC78753A33f41597138B1` | 18 | xStock |
 
 Tokens that charge a fee on transfer are not supported and are not listed.
 
