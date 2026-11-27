@@ -32,7 +32,7 @@ nothing about ThogAMM.
 | Network | Monad mainnet, chain ID **143** |
 | Pool contract | `0x80c74517BCC2D67fFE02D3ED886796272F647210` |
 | Pool ID | `0xce389e78282dedac7b18ba7f775b7602d2ab3ab171bbd6711eb0239be6ef4dcc` |
-| Implementation | `0xb108a1daf3c9ba52778b97a15ebdfa3f6f59b506` |
+| Implementation | `0xF83c81C62c4cc1942003983919C03F5fd06D3eB4` |
 | ABI | [abi/ThogAMM.json](abi/ThogAMM.json) |
 
 Send every call to the pool contract. It is an upgradeable proxy
@@ -498,7 +498,7 @@ charges for the
 
 ## Listed tokens
 
-Read `getTokens(poolId)` at the quote block for the active list. The planned ANTx listing becomes available after the owner appends it and the publisher enables its sides.
+Read `getTokens(poolId)` and the published side flags at the quote block. ANTx joined the registry at token index 17 and category index 14 in Monad block 125777186. [Listing transaction](https://monadscan.com/tx/0xd129bddd38e5039c81bd55e8b0c9e76cc7c48fd5b18bf99f35f779f14a3b72eb)
 
 | Token | Address | Decimals | Kind |
 | --- | --- | ---: | --- |
@@ -519,7 +519,7 @@ Read `getTokens(poolId)` at the quote block for the active list. The planned ANT
 | SPCXx | `0x68fa48B1C2FE52b3D776E1953e0E782b5044Ce28` | 18 | xStock |
 | MUx | `0xf6a873BAe4Ba1B304e45dF52A4b7D176E1C6a8c4` | 18 | xStock |
 | SKHYx | `0x58100046a4Afcd4eE4faDbD4244f3f895a341c56` | 18 | xStock |
-| ANTx (Anthropic) | `0x909369940f22dC1c143aC78753A33f41597138B1` | 18 | xStock (planned) |
+| ANTx (Anthropic) | `0x909369940f22dC1c143aC78753A33f41597138B1` | 18 | xStock |
 
 ANTx uses the same share accounting and stored multiplier as NVDAx. Quote and settle the unwrapped ANTx address above. The token-specific size rate can be zero. Always apply the published inventory, spread and wrapper terms for the pair. On `MakerTokenAdded`, reload the registry and its covariance and spread rows before quoting any pair against the new inventory.
 
